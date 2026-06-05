@@ -24,7 +24,7 @@ def construct():
 
   parameters = {
     'construct_path' : __file__,
-    'design_name'    : 'mininpu',
+    'design_name'    : 'pe',
     'orfs_platform'  : 'nangate45',
     'clock_period'   : 10.0,
     'adk'            : adk_name,
