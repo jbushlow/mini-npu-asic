@@ -25,7 +25,7 @@ def construct():
   parameters = {
     'construct_path'      : __file__,
     'design_name'         : 'pe',
-    'clock_period'        : 2.0,
+    'clock_period'        : 5.0,
     'adk'                 : adk_name,
     'adk_view'            : adk_view,
     # Enable GUIs
@@ -65,7 +65,7 @@ def construct():
   # Default nodes
 
   info           = Node( 'info',                            default=True )
-  synth          = Node( 'synopsys-dc-synthesis',           default=True )
+  synth          = Node( os.path.join(nodes_dir, 'synopsys-dc-synthesis'))
   iflow          = Node( 'cadence-innovus-flowsetup',       default=True )
   init           = Node( 'cadence-innovus-init',            default=True )
   power          = Node( 'cadence-innovus-power',           default=True )

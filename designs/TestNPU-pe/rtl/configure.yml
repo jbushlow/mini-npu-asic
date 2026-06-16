@@ -3,3 +3,5 @@ name: rtl
 outputs:
   - design.v
 
+commands:
+  - cat fp16_mul_fp32.sv fp32_add.sv pe.sv > outputs/design.v
