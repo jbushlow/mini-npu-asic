@@ -41,9 +41,8 @@ def construct():
     'hold_target_slack'   : 0.050,
     # Utilization target
     'core_density_target' : 0.70,
-    'design_name'         : 'pe',
+    'top_module'          : 'pe',
     'design_path'         : '../../../mininpu/npu/src/compute_tile',
-    'top_level_file'      : '../../../mininpu/npu/src/compute_tile/pe.sv',
     'sv2v_include_dirs'   : ".:.."
   }
 
