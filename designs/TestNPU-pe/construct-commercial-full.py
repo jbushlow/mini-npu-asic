@@ -80,7 +80,6 @@ def construct():
   gdsmerge       = Node( 'mentor-calibre-gdsmerge',         default=True )
   drc            = Node( 'mentor-calibre-drc',              default=True )
   lvs            = Node( 'mentor-calibre-lvs',              default=True )
-  debugcalibre   = Node( 'cadence-innovus-debug-calibre',   default=True )
   vcs_sim        = Node( 'synopsys-vcs-sim-old',            default=True )
   power_est      = Node( 'synopsys-pt-power',               default=True )
 
@@ -113,7 +112,6 @@ def construct():
   g.add_node( gdsmerge          )
   g.add_node( drc               )
   g.add_node( lvs               )
-  g.add_node( debugcalibre      )
   g.add_node( testbench         )
   g.add_node( vcs_sim           )
   g.add_node( power_est         )
@@ -174,13 +172,6 @@ def construct():
 
   g.connect_by_name( gdsmerge,       drc            )
   g.connect_by_name( gdsmerge,       lvs            )
-
-  g.connect_by_name( adk,            debugcalibre   )
-  g.connect_by_name( synth,          debugcalibre   )
-  g.connect_by_name( iflow,          debugcalibre   )
-  g.connect_by_name( signoff,        debugcalibre   )
-  g.connect_by_name( drc,            debugcalibre   )
-  g.connect_by_name( lvs,            debugcalibre   )
 
   g.connect_by_name( adk,            vcs_sim        )
   g.connect_by_name( signoff,        vcs_sim        )
