@@ -44,6 +44,7 @@ def construct():
     'design_name'         : 'pe',
     'design_path'         : '../../../mininpu/npu/src/compute_tile',
     'top_level_file'      : '../../../mininpu/npu/src/compute_tile/pe.sv',
+    'sv2v_include_dirs'   : ".:.."
   }
 
   #-----------------------------------------------------------------------
