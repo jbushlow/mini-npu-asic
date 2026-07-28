@@ -41,6 +41,13 @@ def construct():
     'hold_target_slack'   : 0.050,
     # Utilization target
     'core_density_target' : 0.70,
+    # Floorplan controls
+    'floorplan_mode'      : 'auto',
+    'floorplan_aspect_ratio' : 1.0,
+    'floorplan_width'     : '',
+    'floorplan_height'    : '',
+    # Stop after floorplan, power, place, cts, route, or none
+    'stop_after_step'     : 'none',
     'top_module'          : 'pe',
     'design_path'         : '../../../mininpu/npu/src/compute_tile',
     'sv2v_include_dirs'   : ".:.."
