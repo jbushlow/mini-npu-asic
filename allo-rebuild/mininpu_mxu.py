@@ -405,163 +405,164 @@ def pack_int32_tiles(matrix):
 def unpack_int32_tiles(packed_matrix, shape):
     return packed_matrix.view(np.int32).reshape(shape).copy()
 
+if __name__ == "__main__":
 
-rng = np.random.default_rng(seed=0)
+    rng = np.random.default_rng(seed=0)
 
-# =========================================================
-# Test 1: v0 weight-stationary MXU
-# =========================================================
+    # =========================================================
+    # Test 1: v0 weight-stationary MXU
+    # =========================================================
 
-I_v0 = rng.integers(
-    low=-4,
-    high=5,
-    size=(TEST_M, TEST_RT),
-    dtype=np.int32,
-)
-W_v0 = rng.integers(
-    low=-4,
-    high=5,
-    size=(TEST_RT, TEST_CT),
-    dtype=np.int32,
-)
-C_v0 = np.zeros(
-    (TEST_M, TEST_CT),
-    dtype=np.int32,
-)
+    I_v0 = rng.integers(
+        low=-4,
+        high=5,
+        size=(TEST_M, TEST_RT),
+        dtype=np.int32,
+    )
+    W_v0 = rng.integers(
+        low=-4,
+        high=5,
+        size=(TEST_RT, TEST_CT),
+        dtype=np.int32,
+    )
+    C_v0 = np.zeros(
+        (TEST_M, TEST_CT),
+        dtype=np.int32,
+    )
 
-expected_C_v0 = I_v0 @ W_v0
+    expected_C_v0 = I_v0 @ W_v0
 
-I_packed_v0 = pack_int32_rows(I_v0)
-W_packed_v0 = pack_int32_rows(W_v0)
-C_packed_v0 = pack_int32_rows(C_v0)
+    I_packed_v0 = pack_int32_rows(I_v0)
+    W_packed_v0 = pack_int32_rows(W_v0)
+    C_packed_v0 = pack_int32_rows(C_v0)
 
-print("=" * 60)
-print("TEST 1: v0 weight-stationary MXU")
-print("=" * 60)
+    print("=" * 60)
+    print("TEST 1: v0 weight-stationary MXU")
+    print("=" * 60)
 
-simulator_v0 = df.build(MXU_v0_test_top, target="simulator")
-simulator_v0(I_packed_v0, W_packed_v0, C_packed_v0)
+    simulator_v0 = df.build(MXU_v0_test_top, target="simulator")
+    simulator_v0(I_packed_v0, W_packed_v0, C_packed_v0)
 
-C_v0 = unpack_int32_rows(
-    C_packed_v0,
-    TEST_M,
-    TEST_CT,
-)
+    C_v0 = unpack_int32_rows(
+        C_packed_v0,
+        TEST_M,
+        TEST_CT,
+    )
 
-print("I:")
-print(I_v0)
+    print("I:")
+    print(I_v0)
 
-print("\nW:")
-print(W_v0)
+    print("\nW:")
+    print(W_v0)
 
-print("\nMXU v0 result:")
-print(C_v0)
+    print("\nMXU v0 result:")
+    print(C_v0)
 
-print("\nNumPy reference:")
-print(expected_C_v0)
+    print("\nNumPy reference:")
+    print(expected_C_v0)
 
-np.testing.assert_array_equal(C_v0, expected_C_v0)
-print("\nTEST 1 PASSED")
+    np.testing.assert_array_equal(C_v0, expected_C_v0)
+    print("\nTEST 1 PASSED")
 
-# =========================================================
-# Test 2: v1 command-controlled two-bank MXU
-# =========================================================
+    # =========================================================
+    # Test 2: v1 command-controlled two-bank MXU
+    # =========================================================
 
-Command_Opcode_v1 = np.array(
-    [
-        CMD_LOAD_WEIGHTS_BANK_0_V1,
-        CMD_LOAD_WEIGHTS_BANK_1_V1,
-        CMD_MATMUL_BANK_0_V1,
-        CMD_MATMUL_BANK_1_V1,
-    ],
-    dtype=np.int32,
-)
+    Command_Opcode_v1 = np.array(
+        [
+            CMD_LOAD_WEIGHTS_BANK_0_V1,
+            CMD_LOAD_WEIGHTS_BANK_1_V1,
+            CMD_MATMUL_BANK_0_V1,
+            CMD_MATMUL_BANK_1_V1,
+        ],
+        dtype=np.int32,
+    )
 
-I_v1 = np.zeros(
-    (TEST_NUM_COMMANDS_V1, TEST_M, TEST_RT),
-    dtype=np.int32,
-)
-I_v1[2] = rng.integers(
-    low=-4,
-    high=5,
-    size=(TEST_M, TEST_RT),
-    dtype=np.int32,
-)
-I_v1[3] = rng.integers(
-    low=-4,
-    high=5,
-    size=(TEST_M, TEST_RT),
-    dtype=np.int32,
-)
+    I_v1 = np.zeros(
+        (TEST_NUM_COMMANDS_V1, TEST_M, TEST_RT),
+        dtype=np.int32,
+    )
+    I_v1[2] = rng.integers(
+        low=-4,
+        high=5,
+        size=(TEST_M, TEST_RT),
+        dtype=np.int32,
+    )
+    I_v1[3] = rng.integers(
+        low=-4,
+        high=5,
+        size=(TEST_M, TEST_RT),
+        dtype=np.int32,
+    )
 
-W_v1 = rng.integers(
-    low=-4,
-    high=5,
-    size=(2, TEST_RT, TEST_CT),
-    dtype=np.int32,
-)
+    W_v1 = rng.integers(
+        low=-4,
+        high=5,
+        size=(2, TEST_RT, TEST_CT),
+        dtype=np.int32,
+    )
 
-C_v1 = np.zeros(
-    (TEST_NUM_COMMANDS_V1, TEST_M, TEST_CT),
-    dtype=np.int32,
-)
-expected_C_v1 = np.zeros_like(C_v1)
-expected_C_v1[2] = I_v1[2] @ W_v1[0]
-expected_C_v1[3] = I_v1[3] @ W_v1[1]
+    C_v1 = np.zeros(
+        (TEST_NUM_COMMANDS_V1, TEST_M, TEST_CT),
+        dtype=np.int32,
+    )
+    expected_C_v1 = np.zeros_like(C_v1)
+    expected_C_v1[2] = I_v1[2] @ W_v1[0]
+    expected_C_v1[3] = I_v1[3] @ W_v1[1]
 
-I_packed_v1 = pack_int32_tiles(I_v1)
-W_packed_v1 = pack_int32_tiles(W_v1)
-C_packed_v1 = pack_int32_tiles(C_v1)
+    I_packed_v1 = pack_int32_tiles(I_v1)
+    W_packed_v1 = pack_int32_tiles(W_v1)
+    C_packed_v1 = pack_int32_tiles(C_v1)
 
-print("\n")
-print("=" * 60)
-print("TEST 2: v1 command-controlled two-bank MXU")
-print("=" * 60)
+    print("\n")
+    print("=" * 60)
+    print("TEST 2: v1 command-controlled two-bank MXU")
+    print("=" * 60)
 
-simulator_v1 = df.build(MXU_v1_test_top, target="simulator")
-simulator_v1(
-    I_packed_v1,
-    W_packed_v1,
-    C_packed_v1,
-    Command_Opcode_v1,
-)
+    simulator_v1 = df.build(MXU_v1_test_top, target="simulator")
+    simulator_v1(
+        I_packed_v1,
+        W_packed_v1,
+        C_packed_v1,
+        Command_Opcode_v1,
+    )
 
-C_v1 = unpack_int32_tiles(
-    C_packed_v1,
-    (TEST_NUM_COMMANDS_V1, TEST_M, TEST_CT),
-)
+    C_v1 = unpack_int32_tiles(
+        C_packed_v1,
+        (TEST_NUM_COMMANDS_V1, TEST_M, TEST_CT),
+    )
 
-print("Commands:")
-print(Command_Opcode_v1)
+    print("Commands:")
+    print(Command_Opcode_v1)
 
-print("\nI for bank 0 matmul:")
-print(I_v1[2])
+    print("\nI for bank 0 matmul:")
+    print(I_v1[2])
 
-print("\nW loaded into bank 0:")
-print(W_v1[0])
+    print("\nW loaded into bank 0:")
+    print(W_v1[0])
 
-print("\nMXU v1 bank 0 result:")
-print(C_v1[2])
+    print("\nMXU v1 bank 0 result:")
+    print(C_v1[2])
 
-print("\nNumPy bank 0 reference:")
-print(expected_C_v1[2])
+    print("\nNumPy bank 0 reference:")
+    print(expected_C_v1[2])
 
-print("\nI for bank 1 matmul:")
-print(I_v1[3])
+    print("\nI for bank 1 matmul:")
+    print(I_v1[3])
 
-print("\nW loaded into bank 1:")
-print(W_v1[1])
+    print("\nW loaded into bank 1:")
+    print(W_v1[1])
 
-print("\nMXU v1 bank 1 result:")
-print(C_v1[3])
+    print("\nMXU v1 bank 1 result:")
+    print(C_v1[3])
 
-print("\nNumPy bank 1 reference:")
-print(expected_C_v1[3])
+    print("\nNumPy bank 1 reference:")
+    print(expected_C_v1[3])
 
-np.testing.assert_array_equal(C_v1, expected_C_v1)
-print("\nTEST 2 PASSED")
+    np.testing.assert_array_equal(C_v1, expected_C_v1)
+    print("\nTEST 2 PASSED")
 
-print("\n")
-print("=" * 60)
-print("ALL MXU TESTS PASSED")
-print("=" * 60)
+    print("\n")
+    print("=" * 60)
+    print("ALL MXU TESTS PASSED")
+    print("=" * 60)
