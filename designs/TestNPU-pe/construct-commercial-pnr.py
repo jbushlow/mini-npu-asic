@@ -48,6 +48,18 @@ def construct():
     'floorplan_height'    : '',
     # Stop after floorplan, power, place, cts, route, or none
     'stop_after_step'     : 'none',
+    # Innovus/ADK controls
+    'process_node'        : 45,
+    'max_route_layer'     : 7,
+    'local_cpus'          : 16,
+    'postroute_max_local_cpus' : 8,
+    'macro_halo'          : 2.0,
+    'macro_pg_resource_util' : 0.2,
+    'macro_forbidden_space_to_macro' : '20 20',
+    'macro_min_space_to_core' : '30 30',
+    'macro_corner_keepout' : '5 5',
+    'primary_power_net'   : 'VDD',
+    'primary_ground_net'  : 'VSS',
     'top_module'          : 'pe',
     'design_path'         : '../../../mininpu/npu/src/compute_tile',
     'sv2v_include_dirs'   : ".:.."
