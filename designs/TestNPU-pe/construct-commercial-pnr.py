@@ -66,6 +66,8 @@ def construct():
     'well_tap_interval'   : 120,
     'primary_power_net'   : 'VDD',
     'primary_ground_net'  : 'VSS',
+    'power_pin_names'     : 'VDD',
+    'ground_pin_names'    : 'VSS',
     'top_module'          : 'pe',
     'design_path'         : '../../../mininpu/npu/src/compute_tile',
     'sv2v_include_dirs'   : ".:.."
