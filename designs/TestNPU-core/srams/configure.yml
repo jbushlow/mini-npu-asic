@@ -1,0 +1,21 @@
+#=========================================================================
+# Reused SRAM Views
+#=========================================================================
+
+name: reused-srams
+
+outputs:
+  - srams
+
+commands:
+  - mkdir -p outputs
+  - 'test -d "$sram_cache_path" || { echo "ERROR: sram_cache_path does not exist: $sram_cache_path"; exit 1; }'
+  - cache_path="$(cd "$sram_cache_path" && pwd)" && ln -sfn "$cache_path" outputs/srams
+
+parameters:
+  sram_cache_path: ../../srams
+
+preconditions:
+
+postconditions:
+  - assert File( 'outputs/srams' )
