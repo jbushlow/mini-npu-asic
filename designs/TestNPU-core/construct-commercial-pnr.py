@@ -72,7 +72,9 @@ def construct():
     'top_module'          : 'core',
     'design_path'         : '../../../mininpu/hardware/rtl',
     'sv2v_include_dirs'   : '.:pkg:common:core/top:core/sequencer:core/spad:core/mxu:core/vpu:core/vpu/fpu:core/dmu:uncore/dma',
-    # Reuse a pre-generated SRAM view directory at mini-npu-asic/srams.
+    # Reuse pre-generated SRAM views from mini-npu-asic/srams.
+    'sram_manifest'       : 'rtl/sram_manifest.yml',
+    'use_sram_cache'      : True,
     'sram_cache_path'     : '../../srams',
   }
 
@@ -91,9 +93,9 @@ def construct():
 
   testbench      = Node( this_dir + '/testbench'   )
   constraints    = Node( this_dir + '/constraints' )
-  srams          = Node( this_dir + '/srams'       )
 
   info           = Node( 'info',                            default=True          )
+  openram        = Node( os.path.join(nodes_dir, 'openram-sram-generation')       )
   sv2v           = Node( os.path.join(nodes_dir, 'sv2v-design-collector')         )
   synth          = Node( os.path.join(nodes_dir, 'synopsys-dc-synthesis')         )
   pnr            = Node( os.path.join(nodes_dir, 'cadence-innovus-pnr')           )
@@ -119,7 +121,7 @@ def construct():
   g.add_node( info              )
   g.add_node( sv2v              )
   g.add_node( testbench         )
-  g.add_node( srams             )
+  g.add_node( openram           )
   g.add_node( constraints       )
   g.add_node( synth             )
   g.add_node( pnr               )
@@ -145,14 +147,14 @@ def construct():
   g.connect_by_name( adk,            lvs            )
   g.connect_by_name( adk,            genlibdb       )
 
-  g.connect_by_name( srams,          synth          )
-  g.connect_by_name( srams,          pnr            )
-  g.connect_by_name( srams,          pt_signoff     )
-  g.connect_by_name( srams,          genlibdb       )
-  g.connect_by_name( srams,          gdsmerge       )
-  g.connect_by_name( srams,          lvs            )
-  g.connect_by_name( srams,          vcs_sim        )
-  g.connect_by_name( srams,          power_est      )
+  g.connect_by_name( openram,        synth          )
+  g.connect_by_name( openram,        pnr            )
+  g.connect_by_name( openram,        pt_signoff     )
+  g.connect_by_name( openram,        genlibdb       )
+  g.connect_by_name( openram,        gdsmerge       )
+  g.connect_by_name( openram,        lvs            )
+  g.connect_by_name( openram,        vcs_sim        )
+  g.connect_by_name( openram,        power_est      )
 
   g.connect_by_name( sv2v,           synth          )
   g.connect_by_name( constraints,    synth          )
