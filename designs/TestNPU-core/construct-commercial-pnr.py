@@ -25,7 +25,7 @@ def construct():
   parameters = {
     'construct_path'      : __file__,
     'design_name'         : 'core',
-    'clock_period'        : 10.0,
+    'clock_period'        : 15.0,
     'adk'                 : adk_name,
     'adk_view'            : adk_view,
     # Enable GUIs
@@ -35,9 +35,9 @@ def construct():
     # Synthesis
     # Flatten effort 0 is strict hierarchy, 3 is full flattening
     'flatten_effort'      : 0,
-    'topographical'       : True,
+    'topographical'       : False,
     # Postroute timing target slack
-    'setup_target_slack'  : 0.000,
+    'setup_target_slack'  : 0.050,
     'hold_target_slack'   : 0.050,
     # Utilization target
     'core_density_target' : 0.70,
@@ -47,7 +47,7 @@ def construct():
     'floorplan_width'     : '',
     'floorplan_height'    : '',
     # Stop after floorplan, power, place, cts, route, or none
-    'stop_after_step'     : 'none',
+    'stop_after_step'     : 'power',
     # Innovus/ADK controls
     'process_node'        : 45,
     'max_route_layer'     : 7,
@@ -66,11 +66,11 @@ def construct():
     'well_tap_interval'   : 120,
     'primary_power_net'   : 'VDD',
     'primary_ground_net'  : 'VSS',
-    'power_pin_names'     : 'VDD',
-    'ground_pin_names'    : 'VSS',
+    'power_pin_names'     : 'VDD, vdd',
+    'ground_pin_names'    : 'VSS, gnd',
     # SV2V params
     'top_module'          : 'core',
-    'design_path'         : '../../../mininpu/hardware/rtl',
+    'design_path'         : '~/mininpu/hardware/rtl',
     'sv2v_include_dirs'   : '.:pkg:common:core/top:core/sequencer:core/spad:core/mxu:core/vpu:core/vpu/fpu:core/dmu:uncore/dma',
     # Reuse pre-generated SRAM views from mini-npu-asic/srams.
     'sram_manifest'       : 'rtl/sram_manifest.yml',
