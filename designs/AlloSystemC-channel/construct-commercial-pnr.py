@@ -78,7 +78,7 @@ def construct():
   g.connect_by_name(rtl, synth)
   g.connect_by_name(constraints, synth)
   g.connect_by_name(synth, pnr)
-  g.connect_by_name(constraints, pnr)
+  g.connect_by_name(synth, power_est)
 
   for node in [pt_signoff, genlibdb, gdsmerge, drc, lvs, vcs_sim, power_est]:
     g.connect_by_name(pnr, node)

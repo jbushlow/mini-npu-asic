@@ -1,7 +1,12 @@
+#=========================================================================
+# Constraints
+#=========================================================================
+
 name: constraints
 
 outputs:
-  - design.sdc
+  - constraints.tcl
 
-commands:
-  - cp constraints.tcl outputs/design.sdc
+parameters:
+  clock_period: 10.0
+  design_name: undefined
