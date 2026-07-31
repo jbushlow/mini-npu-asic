@@ -1,0 +1,7 @@
+name: rtl
+
+outputs:
+  - design.v
+
+commands:
+  - cp rtl.v outputs/design.v

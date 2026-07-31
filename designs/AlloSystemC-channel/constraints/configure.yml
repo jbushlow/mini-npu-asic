@@ -1,0 +1,7 @@
+name: constraints
+
+outputs:
+  - design.sdc
+
+commands:
+  - cp constraints.tcl outputs/design.sdc

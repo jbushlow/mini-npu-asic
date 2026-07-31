@@ -1,0 +1,15 @@
+name: testbench
+
+outputs:
+  - testbench.sv
+  - test_vectors.txt
+  - design.args
+
+parameters:
+  testbench_name: HelloChannelTb
+  dut_name: dut
+
+commands:
+  - cp HelloChannelTb.sv outputs/testbench.sv
+  - cp test_vectors.txt outputs/test_vectors.txt
+  - cp design.args outputs/design.args
