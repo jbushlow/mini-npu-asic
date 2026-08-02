@@ -25,6 +25,7 @@ def construct():
             "build_mode": "csyn",
             "clock_period": 10.0,
             "backend_options": '{"device":"u280"}',
+            "allo_setup_script": "/work/shared/common/allo/setup-llvm-main.sh",
             "top_module": "top",
         }
     )
