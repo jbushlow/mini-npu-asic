@@ -37,6 +37,8 @@ def construct():
     full_chip_synthesis = Node(
         os.path.join(stage2_dir, "commercial-full-chip-synthesis")
     )
+    physical_intent = Node(os.path.join(stage2_dir, "allo-asic-physical-intent"))
+    full_chip_pnr = Node(os.path.join(stage2_dir, "commercial-full-chip-pnr"))
     for node in [
         allo_build,
         rtl_normalize,
@@ -50,6 +52,8 @@ def construct():
         assembly_plan,
         rtl_assembly,
         full_chip_synthesis,
+        physical_intent,
+        full_chip_pnr,
     ]:
         graph.add_node(node)
 
@@ -79,6 +83,16 @@ def construct():
     graph.connect_by_name(macro_publish, full_chip_synthesis)
     graph.connect_by_name(adk, full_chip_synthesis)
     graph.connect_by_name(full_chip_synthesis, flow_summary)
+    graph.connect_by_name(assembly_plan, physical_intent)
+    graph.connect_by_name(rtl_assembly, physical_intent)
+    graph.connect_by_name(macro_publish, physical_intent)
+    graph.connect_by_name(full_chip_synthesis, physical_intent)
+    graph.connect_by_name(rtl_assembly, full_chip_pnr)
+    graph.connect_by_name(macro_publish, full_chip_pnr)
+    graph.connect_by_name(full_chip_synthesis, full_chip_pnr)
+    graph.connect_by_name(physical_intent, full_chip_pnr)
+    graph.connect_by_name(adk, full_chip_pnr)
+    graph.connect_by_name(full_chip_pnr, flow_summary)
     for node in [
         macro_synthesis,
         macro_pnr,
@@ -109,6 +123,11 @@ def construct():
             "postroute_max_local_cpus": 4,
             "drc_nthreads": 4,
             "lvs_nthreads": 4,
+            "macro_separation_x": 8.0,
+            "macro_separation_y": 8.0,
+            "kernel_separation_x": 30.0,
+            "kernel_separation_y": 30.0,
+            "sram_separation": 20.0,
         }
     )
     return graph
