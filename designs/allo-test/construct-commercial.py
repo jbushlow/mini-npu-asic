@@ -110,6 +110,11 @@ def construct():
     graph.connect_by_name(full_chip_pnr, full_chip_lvs)
     graph.connect_by_name(macro_publish, full_chip_lvs)
     graph.connect_by_name(adk, full_chip_lvs)
+    # The summary is the terminal reporting node. Its report/metric inputs from
+    # physical verification also make it wait for merge, DRC, and LVS.
+    graph.connect_by_name(full_chip_gdsmerge, flow_summary)
+    graph.connect_by_name(full_chip_drc, flow_summary)
+    graph.connect_by_name(full_chip_lvs, flow_summary)
     for node in [
         macro_synthesis,
         macro_pnr,
