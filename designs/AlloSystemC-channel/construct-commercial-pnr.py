@@ -39,8 +39,8 @@ def construct():
     'well_tap_interval': 120,
     'primary_power_net': 'VDD',
     'primary_ground_net': 'VSS',
-    'power_pin_names': 'VDD,vdd',
-    'ground_pin_names': 'VSS,gnd',
+    'power_pin_names': 'VDD',
+    'ground_pin_names': 'VSS',
   }
 
   this_dir = os.path.dirname(os.path.abspath(__file__))

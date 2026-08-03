@@ -47,7 +47,7 @@ def construct():
     'floorplan_width'     : '',
     'floorplan_height'    : '',
     # Stop after floorplan, power, place, cts, route, or none
-    'stop_after_step'     : 'power',
+    'stop_after_step'     : 'none',
     # Innovus/ADK controls
     'process_node'        : 45,
     'max_route_layer'     : 7,
@@ -66,8 +66,8 @@ def construct():
     'well_tap_interval'   : 120,
     'primary_power_net'   : 'VDD',
     'primary_ground_net'  : 'VSS',
-    'power_pin_names'     : 'VDD, vdd',
-    'ground_pin_names'    : 'VSS, gnd',
+    'power_pin_names'     : 'VDD,vdd',
+    'ground_pin_names'    : 'VSS,gnd',
     # SV2V params
     'top_module'          : 'core',
     'design_path'         : '~/mininpu/hardware/rtl',
