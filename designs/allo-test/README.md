@@ -14,8 +14,12 @@ The `allo-asic-compilation` node imports `allo_design.py` and calls:
 build(project, target, mode, configs)
 ```
 
-The default graph targets Vitis HLS C synthesis, then passes the synthesized
-Verilog and ASIC manifests through `sv2v-rtl-allo`.
+The default graph targets Vitis HLS C synthesis, normalizes the generated RTL,
+selects proven classes meeting `min_macro_reuse`, and runs the complete selected
+batch through isolated parallel DC, Innovus, and PrimeTime/Library Compiler
+workers, with batched Calibre DRC/LVS after PNR. Stage 1 publishes checked
+Verilog, Liberty, DB, LEF, GDS, SPEF, SDF, SDC, reports, and a hardened-macro
+registry. Per-macro VCS and power analysis are intentionally omitted.
 
 `allo_design.py` also defines a deterministic `workload()` hook containing the
 logical A and B inputs and expected C output. Running the file directly executes
