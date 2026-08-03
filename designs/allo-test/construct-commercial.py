@@ -1,4 +1,4 @@
-"""Allo front end and Stage 1 commercial macro-hardening research flow."""
+"""Allo front end plus Stage-1 macro and Stage-2 full-chip research flow."""
 
 import os
 
@@ -15,19 +15,27 @@ def construct():
 
     allo_build = Node(os.path.join(nodes_dir, "allo-asic-compilation"))
     rtl_normalize = Node(os.path.join(nodes_dir, "sv2v-rtl-allo"))
-    macro_plan = Node(os.path.join(nodes_dir, "stage1", "allo-asic-macro-plan"))
+    stage1_dir = os.path.join(nodes_dir, "allo-macro-generation")
+    macro_plan = Node(os.path.join(stage1_dir, "allo-asic-macro-plan"))
     macro_synthesis = Node(
-        os.path.join(nodes_dir, "stage1", "commercial-batch-synthesis")
+        os.path.join(stage1_dir, "commercial-batch-synthesis")
     )
-    macro_pnr = Node(os.path.join(nodes_dir, "stage1", "commercial-macro-pnr"))
+    macro_pnr = Node(os.path.join(stage1_dir, "commercial-macro-pnr"))
     macro_physical_verify = Node(
-        os.path.join(nodes_dir, "stage1", "commercial-batch-physical-verify")
+        os.path.join(stage1_dir, "commercial-batch-physical-verify")
     )
     macro_signoff = Node(
-        os.path.join(nodes_dir, "stage1", "commercial-batch-signoff")
+        os.path.join(stage1_dir, "commercial-batch-signoff")
     )
     macro_publish = Node(
-        os.path.join(nodes_dir, "stage1", "commercial-macro-publish")
+        os.path.join(stage1_dir, "commercial-macro-publish")
+    )
+    flow_summary = Node(os.path.join(nodes_dir, "allo-asic-flow-summary"))
+    stage2_dir = os.path.join(nodes_dir, "allo-full-chip")
+    assembly_plan = Node(os.path.join(stage2_dir, "allo-asic-assembly-plan"))
+    rtl_assembly = Node(os.path.join(stage2_dir, "allo-asic-rtl-assembly"))
+    full_chip_synthesis = Node(
+        os.path.join(stage2_dir, "commercial-full-chip-synthesis")
     )
     for node in [
         allo_build,
@@ -38,6 +46,10 @@ def construct():
         macro_physical_verify,
         macro_signoff,
         macro_publish,
+        flow_summary,
+        assembly_plan,
+        rtl_assembly,
+        full_chip_synthesis,
     ]:
         graph.add_node(node)
 
@@ -49,6 +61,24 @@ def construct():
     graph.connect_by_name(macro_physical_verify, macro_signoff)
     graph.connect_by_name(macro_signoff, macro_publish)
     graph.connect_by_name(rtl_normalize, macro_publish)
+    graph.connect_by_name(macro_publish, flow_summary)
+    for node in [
+        allo_build,
+        macro_synthesis,
+        macro_pnr,
+        macro_physical_verify,
+        macro_signoff,
+    ]:
+        graph.connect_by_name(node, flow_summary)
+    graph.connect_by_name(rtl_normalize, assembly_plan)
+    graph.connect_by_name(macro_publish, assembly_plan)
+    graph.connect_by_name(rtl_normalize, rtl_assembly)
+    graph.connect_by_name(assembly_plan, rtl_assembly)
+    graph.connect_by_name(macro_publish, rtl_assembly)
+    graph.connect_by_name(rtl_assembly, full_chip_synthesis)
+    graph.connect_by_name(macro_publish, full_chip_synthesis)
+    graph.connect_by_name(adk, full_chip_synthesis)
+    graph.connect_by_name(full_chip_synthesis, flow_summary)
     for node in [
         macro_synthesis,
         macro_pnr,
@@ -65,6 +95,7 @@ def construct():
             "backend": "vitis",
             "build_mode": "csyn",
             "clock_period": 10.0,
+            "macro_clock_period": 8.0,
             "backend_options": "device=u280",
             "python_bin": "/home/jb2698/.conda/envs/allo/bin/python",
             "allo_setup_script": "/work/shared/common/allo/setup-llvm-main.sh",

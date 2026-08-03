@@ -21,6 +21,13 @@ workers, with batched Calibre DRC/LVS after PNR. Stage 1 publishes checked
 Verilog, Liberty, DB, LEF, GDS, SPEF, SDF, SDC, reports, and a hardened-macro
 registry. Per-macro VCS and power analysis are intentionally omitted.
 
+Stage 2 validates and assembles the canonical macro instances, then runs the
+new full-chip Design Compiler node with macro DBs as link-only libraries. The
+default `macro_clock_period` is 8 ns and the full-chip `clock_period` is 10 ns;
+preflight requires the chip period to be no smaller than the macro period.
+Four-state VCS verification remains a planned insertion before full-chip
+synthesis once automatic workload/testbench emission is defined.
+
 `allo_design.py` also defines a deterministic `workload()` hook containing the
 logical A and B inputs and expected C output. Running the file directly executes
 that transaction with Allo's dataflow simulator and checks the result. The same
