@@ -39,6 +39,11 @@ def construct():
     )
     physical_intent = Node(os.path.join(stage2_dir, "allo-asic-physical-intent"))
     full_chip_pnr = Node(os.path.join(stage2_dir, "commercial-full-chip-pnr"))
+    full_chip_gdsmerge = Node(
+        os.path.join(stage2_dir, "commercial-full-chip-gdsmerge")
+    )
+    full_chip_drc = Node(os.path.join(stage2_dir, "commercial-full-chip-drc"))
+    full_chip_lvs = Node(os.path.join(stage2_dir, "commercial-full-chip-lvs"))
     for node in [
         allo_build,
         rtl_normalize,
@@ -54,6 +59,9 @@ def construct():
         full_chip_synthesis,
         physical_intent,
         full_chip_pnr,
+        full_chip_gdsmerge,
+        full_chip_drc,
+        full_chip_lvs,
     ]:
         graph.add_node(node)
 
@@ -93,6 +101,15 @@ def construct():
     graph.connect_by_name(physical_intent, full_chip_pnr)
     graph.connect_by_name(adk, full_chip_pnr)
     graph.connect_by_name(full_chip_pnr, flow_summary)
+    graph.connect_by_name(full_chip_pnr, full_chip_gdsmerge)
+    graph.connect_by_name(macro_publish, full_chip_gdsmerge)
+    graph.connect_by_name(adk, full_chip_gdsmerge)
+    graph.connect_by_name(full_chip_gdsmerge, full_chip_drc)
+    graph.connect_by_name(adk, full_chip_drc)
+    graph.connect_by_name(full_chip_gdsmerge, full_chip_lvs)
+    graph.connect_by_name(full_chip_pnr, full_chip_lvs)
+    graph.connect_by_name(macro_publish, full_chip_lvs)
+    graph.connect_by_name(adk, full_chip_lvs)
     for node in [
         macro_synthesis,
         macro_pnr,
@@ -114,6 +131,7 @@ def construct():
             "python_bin": "/home/jb2698/.conda/envs/allo/bin/python",
             "allo_setup_script": "/work/shared/common/allo/setup-llvm-main.sh",
             "top_module": "top",
+            "design_name": "top",
             "adk": "freepdk-45nm",
             "adk_view": "view-standard",
             "min_macro_reuse": 2,
