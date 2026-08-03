@@ -151,6 +151,15 @@ def construct():
             "kernel_separation_x": 30.0,
             "kernel_separation_y": 30.0,
             "sram_separation": 20.0,
+            # Optional terminal summary upload. Replace the ID and credential
+            # path, then enable after sharing the worksheet with the service
+            # account as an Editor.
+            "google_sheets_enabled": False,
+            "google_sheets_required": True,
+            "google_sheets_credentials":
+                "/home/jb2698/.config/gspread/service_account.json",
+            "google_spreadsheet_id": "REPLACE_WITH_SPREADSHEET_ID",
+            "google_worksheet_name": "Results",
         }
     )
     return graph
