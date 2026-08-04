@@ -1,4 +1,4 @@
-"""Allo front end plus Stage-1 macro and Stage-2 full-chip research flow."""
+"""Allo scaling evaluation through Stage 1 and Stage 2 commercial flows."""
 
 import os
 
@@ -14,7 +14,20 @@ def construct():
     adk = graph.get_adk_node()
 
     allo_build = Node(os.path.join(nodes_dir, "allo-asic-compilation"))
+    # These design-specific parameters are intentionally local to this graph.
+    # Register them on the compilation node so mflowgen exports them while it
+    # imports allo_design.py; Graph.update_params only updates declared keys.
+    allo_build.update_params(
+        {
+            "allo_array_size": 4,
+            "allo_reduction_size": 4,
+            "allo_dtype_bits": 32,
+            "allo_fifo_depth": 4,
+        },
+        allow_new=True,
+    )
     rtl_normalize = Node(os.path.join(nodes_dir, "sv2v-rtl-allo"))
+
     stage1_dir = os.path.join(nodes_dir, "allo-macro-generation")
     macro_plan = Node(os.path.join(stage1_dir, "allo-asic-macro-plan"))
     macro_synthesis = Node(
@@ -30,7 +43,7 @@ def construct():
     macro_publish = Node(
         os.path.join(stage1_dir, "commercial-macro-publish")
     )
-    flow_summary = Node(os.path.join(nodes_dir, "allo-asic-flow-summary"))
+
     stage2_dir = os.path.join(nodes_dir, "allo-full-chip")
     assembly_plan = Node(os.path.join(stage2_dir, "allo-asic-assembly-plan"))
     rtl_assembly = Node(os.path.join(stage2_dir, "allo-asic-rtl-assembly"))
@@ -44,6 +57,8 @@ def construct():
     )
     full_chip_drc = Node(os.path.join(stage2_dir, "commercial-full-chip-drc"))
     full_chip_lvs = Node(os.path.join(stage2_dir, "commercial-full-chip-lvs"))
+    flow_summary = Node(os.path.join(nodes_dir, "allo-asic-flow-summary"))
+
     for node in [
         allo_build,
         rtl_normalize,
@@ -53,7 +68,6 @@ def construct():
         macro_physical_verify,
         macro_signoff,
         macro_publish,
-        flow_summary,
         assembly_plan,
         rtl_assembly,
         full_chip_synthesis,
@@ -62,10 +76,14 @@ def construct():
         full_chip_gdsmerge,
         full_chip_drc,
         full_chip_lvs,
+        flow_summary,
     ]:
         graph.add_node(node)
 
+    # Allo/Vitis compilation and normalized RTL production.
     graph.connect_by_name(allo_build, rtl_normalize)
+
+    # Stage 1: select, harden, verify, characterize, and publish reusable PEs.
     graph.connect_by_name(rtl_normalize, macro_plan)
     graph.connect_by_name(macro_plan, macro_synthesis)
     graph.connect_by_name(macro_synthesis, macro_pnr)
@@ -73,15 +91,15 @@ def construct():
     graph.connect_by_name(macro_physical_verify, macro_signoff)
     graph.connect_by_name(macro_signoff, macro_publish)
     graph.connect_by_name(rtl_normalize, macro_publish)
-    graph.connect_by_name(macro_publish, flow_summary)
     for node in [
-        allo_build,
         macro_synthesis,
         macro_pnr,
         macro_physical_verify,
         macro_signoff,
     ]:
-        graph.connect_by_name(node, flow_summary)
+        graph.connect_by_name(adk, node)
+
+    # Stage 2: substitute the published macro views and implement the chip.
     graph.connect_by_name(rtl_normalize, assembly_plan)
     graph.connect_by_name(macro_publish, assembly_plan)
     graph.connect_by_name(rtl_normalize, rtl_assembly)
@@ -90,7 +108,6 @@ def construct():
     graph.connect_by_name(rtl_assembly, full_chip_synthesis)
     graph.connect_by_name(macro_publish, full_chip_synthesis)
     graph.connect_by_name(adk, full_chip_synthesis)
-    graph.connect_by_name(full_chip_synthesis, flow_summary)
     graph.connect_by_name(assembly_plan, physical_intent)
     graph.connect_by_name(rtl_assembly, physical_intent)
     graph.connect_by_name(macro_publish, physical_intent)
@@ -100,7 +117,8 @@ def construct():
     graph.connect_by_name(full_chip_synthesis, full_chip_pnr)
     graph.connect_by_name(physical_intent, full_chip_pnr)
     graph.connect_by_name(adk, full_chip_pnr)
-    graph.connect_by_name(full_chip_pnr, flow_summary)
+
+    # Full-chip physical verification.
     graph.connect_by_name(full_chip_pnr, full_chip_gdsmerge)
     graph.connect_by_name(macro_publish, full_chip_gdsmerge)
     graph.connect_by_name(adk, full_chip_gdsmerge)
@@ -110,24 +128,32 @@ def construct():
     graph.connect_by_name(full_chip_pnr, full_chip_lvs)
     graph.connect_by_name(macro_publish, full_chip_lvs)
     graph.connect_by_name(adk, full_chip_lvs)
-    # The summary is the terminal reporting node. Its report/metric inputs from
-    # physical verification also make it wait for merge, DRC, and LVS.
-    graph.connect_by_name(full_chip_gdsmerge, flow_summary)
-    graph.connect_by_name(full_chip_drc, flow_summary)
-    graph.connect_by_name(full_chip_lvs, flow_summary)
+
+    # Terminal summary waits for both macro and full-chip results.
+    graph.connect_by_name(macro_publish, flow_summary)
     for node in [
+        allo_build,
         macro_synthesis,
         macro_pnr,
         macro_physical_verify,
         macro_signoff,
+        full_chip_synthesis,
+        full_chip_pnr,
+        full_chip_gdsmerge,
+        full_chip_drc,
+        full_chip_lvs,
     ]:
-        graph.connect_by_name(adk, node)
+        graph.connect_by_name(node, flow_summary)
 
     graph.update_params(
         {
             "construct_path": __file__,
             "allo_design_file": os.path.join(this_dir, "allo_design.py"),
             "allo_entrypoint": "build",
+            "allo_array_size": 4,
+            "allo_reduction_size": 4,
+            "allo_dtype_bits": 32,
+            "allo_fifo_depth": 4,
             "backend": "vitis",
             "build_mode": "csyn",
             "clock_period": 10.0,
@@ -153,9 +179,6 @@ def construct():
             "kernel_separation_x": 30.0,
             "kernel_separation_y": 30.0,
             "sram_separation": 20.0,
-            # Optional terminal summary upload. Replace the ID and credential
-            # path, then enable after sharing the worksheet with the service
-            # account as an Editor.
             "google_sheets_enabled": False,
             "google_sheets_required": True,
             "google_sheets_credentials":
