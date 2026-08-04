@@ -101,6 +101,7 @@ def construct():
     graph.connect_by_name(physical_intent, full_chip_pnr)
     graph.connect_by_name(adk, full_chip_pnr)
     graph.connect_by_name(full_chip_pnr, flow_summary)
+    graph.connect_by_name(physical_intent, flow_summary)
     graph.connect_by_name(full_chip_pnr, full_chip_gdsmerge)
     graph.connect_by_name(macro_publish, full_chip_gdsmerge)
     graph.connect_by_name(adk, full_chip_gdsmerge)
@@ -137,9 +138,11 @@ def construct():
             "allo_setup_script": "/work/shared/common/allo/setup-llvm-main.sh",
             "top_module": "top",
             "design_name": "top",
+            "report_design_name": "allo-test",
             "adk": "freepdk-45nm",
             "adk_view": "view-standard",
             "min_macro_reuse": 2,
+            "bypass_macro_generation": False,
             "enable_gui": False,
             "nthreads": 4,
             "local_cpus": 4,

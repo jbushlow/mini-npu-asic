@@ -144,6 +144,7 @@ def construct():
         full_chip_lvs,
     ]:
         graph.connect_by_name(node, flow_summary)
+    graph.connect_by_name(physical_intent, flow_summary)
 
     graph.update_params(
         {
@@ -163,9 +164,11 @@ def construct():
             "allo_setup_script": "/work/shared/common/allo/setup-llvm-main.sh",
             "top_module": "top",
             "design_name": "top",
+            "report_design_name": "allo-scaling-eval",
             "adk": "freepdk-45nm",
             "adk_view": "view-standard",
             "min_macro_reuse": 2,
+            "bypass_macro_generation": False,
             "enable_gui": False,
             "nthreads": 4,
             "local_cpus": 4,
