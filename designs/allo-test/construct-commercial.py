@@ -144,6 +144,8 @@ def construct():
             "nthreads": 4,
             "local_cpus": 4,
             "postroute_max_local_cpus": 4,
+            "antenna_check_policy": "report",
+            "kernel_cluster_max_density_percent": 55,
             "drc_nthreads": 4,
             "lvs_nthreads": 4,
             "macro_separation_x": 8.0,
