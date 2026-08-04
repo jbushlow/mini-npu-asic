@@ -142,7 +142,7 @@ def construct():
             "adk": "freepdk-45nm",
             "adk_view": "view-standard",
             "min_macro_reuse": 2,
-            "bypass_macro_generation": False,
+            "bypass_macro_generation": True,
             "enable_gui": False,
             "nthreads": 4,
             "local_cpus": 4,
@@ -151,6 +151,7 @@ def construct():
             "kernel_cluster_max_density_percent": 55,
             "drc_nthreads": 4,
             "lvs_nthreads": 4,
+            "flatten_effort": 1,
             "macro_separation_x": 18.0,
             "macro_separation_y": 18.0,
             "kernel_separation_x": 30.0,
@@ -159,12 +160,13 @@ def construct():
             # Optional terminal summary upload. Replace the ID and credential
             # path, then enable after sharing the worksheet with the service
             # account as an Editor.
-            "google_sheets_enabled": False,
+            "report_design_name": "allo-test-flat",
+            "google_sheets_enabled": True,
             "google_sheets_required": True,
             "google_sheets_credentials":
                 "/home/jb2698/.config/gspread/service_account.json",
-            "google_spreadsheet_id": "REPLACE_WITH_SPREADSHEET_ID",
-            "google_worksheet_name": "Results",
+            "google_spreadsheet_id": "1F5ck4kwl_YjXzAMYE-LmGeHsYYSfzZKWXKVH9LVJ9zU",
+            "google_worksheet_name": "Results_Landing",
         }
     )
     return graph

@@ -151,7 +151,7 @@ def construct():
             "construct_path": __file__,
             "allo_design_file": os.path.join(this_dir, "allo_design.py"),
             "allo_entrypoint": "build",
-            "allo_array_size": 4,
+            "allo_array_size": 6,
             "allo_reduction_size": 4,
             "allo_dtype_bits": 32,
             "allo_fifo_depth": 4,
@@ -164,7 +164,7 @@ def construct():
             "allo_setup_script": "/work/shared/common/allo/setup-llvm-main.sh",
             "top_module": "top",
             "design_name": "top",
-            "report_design_name": "allo-scaling-eval",
+            "report_design_name": "allo-scaling-eval, N=6, int32",
             "adk": "freepdk-45nm",
             "adk_view": "view-standard",
             "min_macro_reuse": 2,
@@ -182,12 +182,12 @@ def construct():
             "kernel_separation_x": 30.0,
             "kernel_separation_y": 30.0,
             "sram_separation": 20.0,
-            "google_sheets_enabled": False,
+            "google_sheets_enabled": True,
             "google_sheets_required": True,
             "google_sheets_credentials":
                 "/home/jb2698/.config/gspread/service_account.json",
-            "google_spreadsheet_id": "REPLACE_WITH_SPREADSHEET_ID",
-            "google_worksheet_name": "Results",
+            "google_spreadsheet_id": "1F5ck4kwl_YjXzAMYE-LmGeHsYYSfzZKWXKVH9LVJ9zU",
+            "google_worksheet_name": "Results_Landing",
         }
     )
     return graph
