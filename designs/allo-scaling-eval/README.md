@@ -13,6 +13,12 @@ The commercial graph exposes these experiment parameters:
 - `allo_dtype_bits` (`Int(bits)`, default 32)
 - `allo_fifo_depth` (default 4)
 
+The currently selected commercial evaluation point is `P=8`, `K=8`,
+`Int(32)`, and FIFO depth 1, producing an 8 x 8 systolic compute grid. Both
+the compilation-node parameters and graph-wide parameters in
+`construct-commercial.py` are kept identical so the generated RTL, report
+label, and downstream flow describe the same experiment.
+
 The primary reuse sweep should hold `K`, datatype, clocks, FIFO depth, and all
 physical-flow settings constant while varying `P`. The arithmetic-complexity
 sweep should hold `P` and `K` constant while varying only `allo_dtype_bits`.

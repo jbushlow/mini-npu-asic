@@ -1,6 +1,7 @@
 # Copyright Allo authors. All Rights Reserved.
 # SPDX-License-Identifier: Apache-2.0
 
+import argparse
 from pathlib import Path
 
 import allo
@@ -11,7 +12,7 @@ from allo.ir.types import int32, Stream, Stateful
 
 # Configuration
 
-LANES = 4
+LANES = 5
 IMEM_SIZE = 16
 INSTR_W = 8
 NUM_INPUT_IDS = 16
@@ -80,9 +81,9 @@ def mininpu_v2(
     ctrl: int32[1],
     instr_addr: int32[1],
     instr_in: int32[INSTR_W],
-    ext_inputs: int32[NUM_EXT_INPUTS, LANES],
-    ext_weights: int32[NUM_WEIGHT_TILES, LANES, LANES],
-    ext_outputs: int32[NUM_EXT_OUTPUTS, LANES],
+    ext_inputs: int32[NUM_EXT_INPUTS * LANES],
+    ext_weights: int32[NUM_WEIGHT_TILES * LANES * LANES],
+    ext_outputs: int32[NUM_EXT_OUTPUTS * LANES],
 ):
     # Sequencer-to-engine control
 
@@ -122,6 +123,16 @@ def mininpu_v2(
     mxu_result_s: Stream[int32[LANES], STREAM_DEPTH]
     mxu_result_id_s: Stream[int32, STREAM_DEPTH]
 
+    # VPU dispatch, identical lanes, and output collection
+
+    vpu_lane_mode_s: Stream[int32, 1][LANES]
+    vpu_store_mode_s: Stream[int32, 1]
+    vpu_lane_command_s: Stream[int32[4], STREAM_DEPTH][LANES]
+    vpu_store_command_s: Stream[int32[4], STREAM_DEPTH]
+    vpu_lane_result_s: Stream[int32, STREAM_DEPTH][LANES]
+    vpu_lane_result_id_s: Stream[int32, STREAM_DEPTH][LANES]
+    vpu_lane_store_s: Stream[int32, STREAM_DEPTH][LANES]
+
     # Sequencer
 
     @df.kernel(
@@ -132,8 +143,8 @@ def mininpu_v2(
         ctrl_in: int32[1],
         instr_addr_in: int32[1],
         instr_in_local: int32[INSTR_W],
-        ext_inputs_local: int32[NUM_EXT_INPUTS, LANES],
-        ext_weights_local: int32[NUM_WEIGHT_TILES, LANES, LANES],
+        ext_inputs_local: int32[NUM_EXT_INPUTS * LANES],
+        ext_weights_local: int32[NUM_WEIGHT_TILES * LANES * LANES],
     ):
         imem: int32[IMEM_SIZE * INSTR_W] @ Stateful = 0
 
@@ -172,7 +183,9 @@ def mininpu_v2(
                 if mxu_op == MXU_LOAD_INPUT:
                     input_value: int32[LANES] = 0
                     for lane in range(LANES):
-                        input_value[lane] = ext_inputs_local[mxu_f1, lane]
+                        input_value[lane] = ext_inputs_local[
+                            mxu_f1 * LANES + lane
+                        ]
                     input_push_s.put(input_value)
 
                 elif (
@@ -183,9 +196,7 @@ def mininpu_v2(
                         weight_row: int32[LANES] = 0
                         for lane in range(LANES):
                             weight_row[lane] = ext_weights_local[
-                                mxu_f0,
-                                row,
-                                lane,
+                                (mxu_f0 * LANES + row) * LANES + lane
                             ]
                         weight_push_s.put(weight_row)
 
@@ -362,44 +373,87 @@ def mininpu_v2(
                             fifo_I[i - 1, j].put(input_value)
                         fifo_P[i, j - 1].put(next_partial_sum)
 
-    # Four-lane SIMD VPU and vector buffer
+    # SIMD VPU dispatch. This is the sole consumer of vector MXU results and
+    # broadcasts scalar lane data plus identical commands to the mapped lanes.
 
-    @df.kernel(mapping=[1], args=[ext_outputs])
-    def vpu(ext_outputs_local: int32[NUM_EXT_OUTPUTS, LANES]):
-        vector_buffer: int32[NUM_VECTOR_IDS, LANES] = 0
-
+    @df.kernel(mapping=[1])
+    def vpu_dispatch():
         mode: int32 = vpu_mode_s.get()
+        with allo.meta_for(LANES) as lane:
+            vpu_lane_mode_s[lane].put(mode)
+        vpu_store_mode_s.put(mode)
+
         if mode == CTRL_RUN_PROGRAM:
             for pc in range(IMEM_SIZE):
                 command: int32[4] = vpu_command_s.get()
+                opcode: int32 = command[0]
+
+                with allo.meta_for(LANES) as lane:
+                    vpu_lane_command_s[lane].put(command)
+                vpu_store_command_s.put(command)
+
+                if opcode == VPU_CAPTURE_MXU:
+                    result: int32[LANES] = mxu_result_s.get()
+                    result_id: int32 = mxu_result_id_s.get()
+
+                    with allo.meta_for(LANES) as lane:
+                        vpu_lane_result_s[lane].put(result[lane])
+                        vpu_lane_result_id_s[lane].put(result_id)
+
+    # Each mapped VPU lane owns one scalar slice of the vector buffer. The
+    # kernel body has no PID-dependent control, so all lane implementations are
+    # structurally equivalent and suitable for one reused macro class.
+
+    @df.kernel(mapping=[LANES])
+    def vpu_lane():
+        lane = df.get_pid()
+        vector_buffer: int32[NUM_VECTOR_IDS] = 0
+
+        mode: int32 = vpu_lane_mode_s[lane].get()
+        if mode == CTRL_RUN_PROGRAM:
+            for pc in range(IMEM_SIZE):
+                command: int32[4] = vpu_lane_command_s[lane].get()
                 opcode: int32 = command[0]
                 dst: int32 = command[1]
                 src0: int32 = command[2]
                 src1: int32 = command[3]
 
                 if opcode == VPU_CAPTURE_MXU:
-                    result: int32[LANES] = mxu_result_s.get()
-                    result_id: int32 = mxu_result_id_s.get()
-                    for lane in range(LANES):
-                        vector_buffer[result_id, lane] = result[lane]
+                    result: int32 = vpu_lane_result_s[lane].get()
+                    result_id: int32 = vpu_lane_result_id_s[lane].get()
+                    vector_buffer[result_id] = result
 
                 elif opcode == VPU_VADD:
-                    for lane in range(LANES):
-                        vector_buffer[dst, lane] = (
-                            vector_buffer[src0, lane]
-                            + vector_buffer[src1, lane]
-                        )
+                    vector_buffer[dst] = (
+                        vector_buffer[src0] + vector_buffer[src1]
+                    )
 
                 elif opcode == VPU_RELU:
-                    for lane in range(LANES):
-                        value: int32 = vector_buffer[src0, lane]
-                        if value < 0:
-                            value = 0
-                        vector_buffer[dst, lane] = value
+                    value: int32 = vector_buffer[src0]
+                    if value < 0:
+                        value = 0
+                    vector_buffer[dst] = value
 
                 elif opcode == VPU_STORE:
-                    for lane in range(LANES):
-                        ext_outputs_local[dst, lane] = vector_buffer[src0, lane]
+                    vpu_lane_store_s[lane].put(vector_buffer[src0])
+
+    # Keep external-memory addressing out of vpu_lane so the lane PID does not
+    # become a lane-specific address constant inside the reusable macro.
+
+    @df.kernel(mapping=[1], args=[ext_outputs])
+    def vpu_store(ext_outputs_local: int32[NUM_EXT_OUTPUTS * LANES]):
+        mode: int32 = vpu_store_mode_s.get()
+        if mode == CTRL_RUN_PROGRAM:
+            for pc in range(IMEM_SIZE):
+                command: int32[4] = vpu_store_command_s.get()
+                opcode: int32 = command[0]
+                dst: int32 = command[1]
+
+                if opcode == VPU_STORE:
+                    with allo.meta_for(LANES) as lane:
+                        ext_outputs_local[dst * LANES + lane] = (
+                            vpu_lane_store_s[lane].get()
+                        )
 
 
 def build(project, target, mode, configs):
@@ -463,27 +517,29 @@ def workload():
     instructions[8, VPU_SRC0] = 3
 
     ext_inputs = np.zeros((NUM_EXT_INPUTS, LANES), dtype=np.int32)
-    ext_inputs[0] = np.array([2, -1, 3, 1], dtype=np.int32)
-    ext_inputs[1] = np.array([-2, 4, 1, 3], dtype=np.int32)
+    ext_inputs[0] = np.array([2, -1, 3, 1, 2], dtype=np.int32)
+    ext_inputs[1] = np.array([-2, 4, 1, 3, -1], dtype=np.int32)
 
     ext_weights = np.zeros(
         (NUM_WEIGHT_TILES, LANES, LANES), dtype=np.int32
     )
     ext_weights[0] = np.array(
         [
-            [1, 2, 0, -1],
-            [0, 1, 3, 2],
-            [2, -1, 1, 0],
-            [-2, 0, 1, 2],
+            [1, 2, 0, -1, 1],
+            [0, 1, 3, 2, -2],
+            [2, -1, 1, 0, 1],
+            [-2, 0, 1, 2, 3],
+            [1, -2, 2, 0, 1],
         ],
         dtype=np.int32,
     )
     ext_weights[1] = np.array(
         [
-            [2, 0, -1, 1],
-            [1, -2, 0, 3],
-            [0, 1, 2, -1],
-            [3, 1, 0, 2],
+            [2, 0, -1, 1, 2],
+            [1, -2, 0, 3, -1],
+            [0, 1, 2, -1, 1],
+            [3, 1, 0, 2, -2],
+            [-1, 2, 1, 0, 3],
         ],
         dtype=np.int32,
     )
@@ -497,9 +553,9 @@ def workload():
 
     return {
         "instructions": instructions,
-        "ext_inputs": ext_inputs,
-        "ext_weights": ext_weights,
-        "expected_outputs": expected_outputs,
+        "ext_inputs": ext_inputs.reshape(-1),
+        "ext_weights": ext_weights.reshape(-1),
+        "expected_outputs": expected_outputs.reshape(-1),
     }
 
 
@@ -509,7 +565,7 @@ def run_workload():
     instructions = transaction["instructions"]
     ext_inputs = transaction["ext_inputs"]
     ext_weights = transaction["ext_weights"]
-    ext_outputs = np.zeros((NUM_EXT_OUTPUTS, LANES), dtype=np.int32)
+    ext_outputs = np.zeros(NUM_EXT_OUTPUTS * LANES, dtype=np.int32)
 
     simulator = df.build(mininpu_v2, target="simulator")
 
@@ -543,8 +599,61 @@ def run_workload():
         ext_outputs, transaction["expected_outputs"]
     )
     print("MiniNPU v2 sequencer/MXU/VPU workload passed")
-    print("Output 0:", ext_outputs[0])
+    print("Output 0:", ext_outputs.reshape(NUM_EXT_OUTPUTS, LANES)[0])
+
+
+def run_vitis(project, frequency, device):
+    """Compile MiniNPU v2 with Vitis HLS C synthesis."""
+    project = Path(project).resolve()
+    module = df.build(
+        mininpu_v2,
+        target="vitis_hls",
+        mode="csyn",
+        project=project,
+        wrap_io=False,
+        configs={
+            "frequency": frequency,
+            "device": device,
+        },
+    )
+    print(f"Generated Vitis project: {project}")
+    print(f"Generated HLS source: {project / 'kernel.cpp'}")
+    module()
+    print("Vitis HLS synthesis completed")
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Simulate MiniNPU v2 or synthesize it with Vitis HLS."
+    )
+    parser.add_argument(
+        "--vitis",
+        action="store_true",
+        help="run Vitis HLS C synthesis instead of the simulator",
+    )
+    parser.add_argument(
+        "--project",
+        default="build/mininpu_v2_vitis",
+        help="Vitis project directory (default: %(default)s)",
+    )
+    parser.add_argument(
+        "--frequency",
+        type=float,
+        default=100.0,
+        help="Vitis target frequency in MHz (default: %(default)s)",
+    )
+    parser.add_argument(
+        "--device",
+        default="u280",
+        help="Vitis target device (default: %(default)s)",
+    )
+    args = parser.parse_args()
+
+    if args.vitis:
+        run_vitis(args.project, args.frequency, args.device)
+    else:
+        run_workload()
 
 
 if __name__ == "__main__":
-    run_workload()
+    main()
