@@ -8,8 +8,10 @@ from mflowgen.components import Graph, Node
 def construct():
     graph = Graph()
     this_dir = os.path.dirname(os.path.abspath(__file__))
-    nodes_dir = os.path.join(os.path.dirname(os.path.dirname(this_dir)), "nodes")
+    asic_dir = os.path.dirname(os.path.dirname(this_dir))
+    nodes_dir = os.path.join(asic_dir, "nodes")
 
+    graph.sys_path.append(os.path.join(asic_dir, "adks"))
     graph.set_adk("freepdk-45nm")
     adk = graph.get_adk_node()
 
@@ -25,6 +27,16 @@ def construct():
             "allo_fifo_depth": 1,
         },
         allow_new=True,
+    )
+    testbench_generation = Node(
+        os.path.join(nodes_dir, "allo-testbench-generation")
+    )
+    rtl_sim = Node(os.path.join(nodes_dir, "allo-rtl-sim"))
+    ffgl_sim = Node(os.path.join(nodes_dir, "allo-ffgl-sim"))
+    bagl_sim = Node(os.path.join(nodes_dir, "allo-bagl-sim"))
+    power_analysis = Node(os.path.join(nodes_dir, "synopsys-pt-power"))
+    macro_activity = Node(
+        os.path.join(nodes_dir, "allo-macro-activity-extraction")
     )
     rtl_normalize = Node(os.path.join(nodes_dir, "sv2v-rtl-allo"))
 
@@ -42,6 +54,9 @@ def construct():
     )
     macro_publish = Node(
         os.path.join(stage1_dir, "commercial-macro-publish")
+    )
+    macro_power = Node(
+        os.path.join(stage1_dir, "commercial-batch-macro-power")
     )
 
     stage2_dir = os.path.join(nodes_dir, "allo-full-chip")
@@ -61,6 +76,12 @@ def construct():
 
     for node in [
         allo_build,
+        testbench_generation,
+        rtl_sim,
+        ffgl_sim,
+        bagl_sim,
+        power_analysis,
+        macro_activity,
         rtl_normalize,
         macro_plan,
         macro_synthesis,
@@ -68,6 +89,7 @@ def construct():
         macro_physical_verify,
         macro_signoff,
         macro_publish,
+        macro_power,
         assembly_plan,
         rtl_assembly,
         full_chip_synthesis,
@@ -81,10 +103,21 @@ def construct():
         graph.add_node(node)
 
     # Allo/Vitis compilation and normalized RTL production.
+    graph.connect_by_name(allo_build, testbench_generation)
     graph.connect_by_name(allo_build, rtl_normalize)
 
+    # Reject protocol, buffering, and liveness failures before hardening PEs.
+    graph.connect_by_name(testbench_generation, rtl_sim)
+    graph.connect_by_name(rtl_normalize, rtl_sim)
+
     # Stage 1: select, harden, verify, characterize, and publish reusable PEs.
-    graph.connect_by_name(rtl_normalize, macro_plan)
+    graph.connect_by_name(rtl_sim, macro_plan)
+    for artifact in [
+        "asic-manifest-final.json",
+        "asic-manifest-final.tcl",
+        "build-metadata.json",
+    ]:
+        graph.connect(rtl_normalize.o(artifact), macro_plan.i(artifact))
     graph.connect_by_name(macro_plan, macro_synthesis)
     graph.connect_by_name(macro_synthesis, macro_pnr)
     graph.connect_by_name(macro_pnr, macro_physical_verify)
@@ -129,6 +162,34 @@ def construct():
     graph.connect_by_name(macro_publish, full_chip_lvs)
     graph.connect_by_name(adk, full_chip_lvs)
 
+    # Workload-driven full-chip gate-level validation and power analysis.
+    graph.connect_by_name(testbench_generation, ffgl_sim)
+    graph.connect_by_name(full_chip_synthesis, ffgl_sim)
+    graph.connect_by_name(macro_publish, ffgl_sim)
+    graph.connect_by_name(adk, ffgl_sim)
+
+    graph.connect_by_name(testbench_generation, bagl_sim)
+    graph.connect_by_name(rtl_assembly, bagl_sim)
+    graph.connect_by_name(full_chip_pnr, bagl_sim)
+    graph.connect_by_name(macro_publish, bagl_sim)
+    graph.connect_by_name(adk, bagl_sim)
+
+    graph.connect_by_name(full_chip_pnr, power_analysis)
+    graph.connect_by_name(bagl_sim, power_analysis)
+    graph.connect_by_name(macro_publish, power_analysis)
+    graph.connect_by_name(adk, power_analysis)
+
+    # Preserve one representative workload trace per macro class, run the
+    # class-level PrimeTime jobs in parallel, then add reuse-weighted macro
+    # power to the full-chip shell estimate.
+    graph.connect_by_name(bagl_sim, macro_activity)
+    graph.connect_by_name(assembly_plan, macro_activity)
+    graph.connect_by_name(macro_publish, macro_activity)
+    graph.connect_by_name(macro_activity, macro_power)
+    graph.connect_by_name(macro_publish, macro_power)
+    graph.connect(power_analysis.o("power.rpt"), macro_power.i("power.rpt"))
+    graph.connect_by_name(adk, macro_power)
+
     # Terminal summary waits for both macro and full-chip results.
     graph.connect_by_name(macro_publish, flow_summary)
     for node in [
@@ -145,6 +206,16 @@ def construct():
     ]:
         graph.connect_by_name(node, flow_summary)
     graph.connect_by_name(physical_intent, flow_summary)
+    graph.connect(
+        ffgl_sim.o("simulation-report.json"),
+        flow_summary.i("ffgl-simulation-report.json"),
+    )
+    graph.connect(
+        bagl_sim.o("simulation-report.json"),
+        flow_summary.i("bagl-simulation-report.json"),
+    )
+    graph.connect_by_name(macro_activity, flow_summary)
+    graph.connect_by_name(macro_power, flow_summary)
 
     graph.update_params(
         {
@@ -154,7 +225,7 @@ def construct():
             "allo_array_size": 8,
             "allo_reduction_size": 8,
             "allo_dtype_bits": 32,
-            "allo_fifo_depth": 1,
+            "allo_fifo_depth": 16,
             "backend": "vitis",
             "build_mode": "csyn",
             "clock_period": 10.0,
@@ -164,12 +235,13 @@ def construct():
             "allo_setup_script": "/work/shared/common/allo/setup-llvm-main.sh",
             "top_module": "top",
             "design_name": "top",
-            "report_design_name": "allo-scaling-eval_N8_K8_int32_FIFO1",
+            "report_design_name": "allo-scaling-eval_N8_K8_int32_FIF16",
             "adk": "freepdk-45nm",
             "adk_view": "view-standard",
             "min_macro_reuse": 2,
             "harden_repeated_hls_submodules": False,
             "bypass_macro_generation": False,
+            "fold_fifos_into_macro": True,
             "enable_kernel_rotation": True,
             "enable_gui": False,
             "nthreads": 4,
@@ -177,14 +249,18 @@ def construct():
             "postroute_max_local_cpus": 4,
             "antenna_check_policy": "report",
             "drc_check_policy": "report",
+            "macro_hold_target_slack": 0.050,
+            "macro_setup_target_slack": 0.050,
+            "hold_target_slack": 0.150,
+            "hold_optimization_target_slack": 0.200,
             "stop_after_step": "none",
             "core_density_target": 0.70,
             "highest_macro_routing_layer": 5,
             "drc_nthreads": 4,
             "lvs_nthreads": 4,
             "flatten_effort": 1,
-            "macro_separation_x": 30.0,
-            "macro_separation_y": 30.0,
+            "macro_separation_x": 40.0,
+            "macro_separation_y": 40.0,
             "kernel_separation_x": 30.0,
             "kernel_separation_y": 30.0,
             "sram_separation": 20.0,
@@ -194,6 +270,26 @@ def construct():
                 "/home/jb2698/.config/gspread/service_account.json",
             "google_spreadsheet_id": "1F5ck4kwl_YjXzAMYE-LmGeHsYYSfzZKWXKVH9LVJ9zU",
             "google_worksheet_name": "Results_Landing",
+            # testbench generation test
+            "allo_testbench_enabled": True,
+            "allo_testbench_workload_factory": "testbench_workload",
+            "allo_testbench_top_function": "top",
+            "testbench_name": "allo_generated_testbench",
+            "dut_name": "dut",
+            "sdf_corner": "typ",
+            "sdf_warning_policy": "report",
+            "sdf_unmatched_timingcheck_policy": "report",
+            "sdf_unmatched_iopath_policy": "report",
+            "sdf_uphier_interconnect_policy": "report",
+            "bagl_input_delay_ns": 0.025,
+            "bagl_output_delay_ns": 0.025,
+            "bagl_num_reset_cycles": 8,
+            "waveform": True,
+            "saif_instance": "allo_generated_testbench/dut",
+            "analysis_mode": "averaged",
+            "zero_delay_simulation": False,
+            "lib_op_condition": "undefined",
+            "macro_power_max_workers": 4,
         }
     )
     return graph

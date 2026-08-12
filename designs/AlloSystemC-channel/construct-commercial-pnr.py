@@ -47,6 +47,7 @@ def construct():
   asic_dir = os.path.dirname(os.path.dirname(this_dir))
   nodes_dir = os.path.join(asic_dir, 'nodes')
 
+  g.sys_path.append(os.path.join(asic_dir, 'adks'))
   g.set_adk(adk_name)
   adk = g.get_adk_node()
 

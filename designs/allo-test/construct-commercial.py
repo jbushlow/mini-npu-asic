@@ -8,8 +8,10 @@ from mflowgen.components import Graph, Node
 def construct():
     graph = Graph()
     this_dir = os.path.dirname(os.path.abspath(__file__))
-    nodes_dir = os.path.join(os.path.dirname(os.path.dirname(this_dir)), "nodes")
+    asic_dir = os.path.dirname(os.path.dirname(this_dir))
+    nodes_dir = os.path.join(asic_dir, "nodes")
 
+    graph.sys_path.append(os.path.join(asic_dir, "adks"))
     graph.set_adk("freepdk-45nm")
     adk = graph.get_adk_node()
 

@@ -117,6 +117,65 @@ def workload():
         "expected_outputs": {"C": expected_c.reshape(-1)},
     }
 
+def testbench_workload():
+    """Return a backend-independent workload for generated RTL testbenches.
+
+    This describes function-level calls and expected architectural results.
+    It intentionally contains no AXI or cycle-level information; the
+    testbench-generation node obtains that from the Vitis CSYN artifacts.
+    """
+    transaction = workload()
+
+    matrix_a = transaction["inputs"]["A"].copy()
+    matrix_b = transaction["inputs"]["B"].copy()
+
+    # Give the output memory a deterministic nonzero initial state. This helps
+    # detect incomplete output writes that a zero-filled memory could conceal.
+    matrix_c_initial = np.full(
+        P * P,
+        fill_value=np.array(-7, dtype=_numpy_dtype()),
+        dtype=_numpy_dtype(),
+    )
+
+    matrix_c_expected = transaction["expected_outputs"]["C"].copy()
+
+    return {
+        "schema_version": 1,
+        "top_function": "top",
+        "call_signature": ["A", "B", "C"],
+
+        "calls": [
+            {
+                "name": "gemm",
+
+                # Assert hardware reset before the first transaction.
+                "reset_before": True,
+
+                # These are the initial contents of the memories passed to the
+                # top-level Allo function.
+                "arguments": {
+                    "A": matrix_a,
+                    "B": matrix_b,
+                    "C": matrix_c_initial,
+                },
+
+                # The testbench waits for hardware completion and compares the
+                # final C memory against this value.
+                "expected": {
+                    "C": matrix_c_expected,
+                },
+
+                "comparison": {
+                    "C": {
+                        "mode": "bit_exact",
+                    },
+                },
+            }
+        ],
+
+        # set timeout - scale with array size 
+        "default_timeout_cycles": max(10000, 100 * P * P * K),
+    }
 
 def run_workload():
     """Run and check the workload with Allo's dataflow simulator."""

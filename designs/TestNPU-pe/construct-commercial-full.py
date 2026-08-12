@@ -56,6 +56,7 @@ def construct():
 
   # ADK node
 
+  g.sys_path.append(os.path.join(asic_dir, "adks"))
   g.set_adk( adk_name )
   adk = g.get_adk_node()
 
@@ -192,4 +193,3 @@ def construct():
 if __name__ == '__main__':
   g = construct()
 #  g.plot()
-
