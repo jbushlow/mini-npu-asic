@@ -61,6 +61,7 @@ def construct():
             "harden_repeated_hls_submodules": False,
             "bypass_macro_generation": False,
             "enable_kernel_rotation": True,
+            "interleave_macros": False,
             "enable_gui": False,
             "nthreads": 4,
             "local_cpus": 4,

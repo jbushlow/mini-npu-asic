@@ -227,6 +227,7 @@ def construct():
             "bypass_macro_generation": False,
             "fold_fifos_into_macro": True,
             "enable_kernel_rotation": True,
+            "interleave_macros": False,
             "enable_gui": False,
             "nthreads": 4,
             "local_cpus": 4,
