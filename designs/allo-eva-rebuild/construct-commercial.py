@@ -60,6 +60,7 @@ def construct():
     )
     full_chip_drc = Node(os.path.join(stage2_dir, "commercial-full-chip-drc"))
     full_chip_lvs = Node(os.path.join(stage2_dir, "commercial-full-chip-lvs"))
+    trim_collateral = Node(os.path.join(nodes_dir, "allo-trim-collateral"))
     flow_summary = Node(os.path.join(nodes_dir, "allo-asic-flow-summary"))
 
     for node in [
@@ -86,6 +87,7 @@ def construct():
         full_chip_gdsmerge,
         full_chip_drc,
         full_chip_lvs,
+        trim_collateral,
         flow_summary,
     ]:
         graph.add_node(node)
@@ -178,6 +180,21 @@ def construct():
     graph.connect(power_analysis.o("power.rpt"), macro_power.i("power.rpt"))
     graph.connect_by_name(adk, macro_power)
 
+    # Trim large simulation and verification intermediates only after every
+    # activity, power, DRC, and LVS consumer has completed.
+    graph.connect(
+        ffgl_sim.o("simulation-report.json"),
+        trim_collateral.i("ffgl-complete.json"),
+    )
+    graph.connect(
+        bagl_sim.o("simulation-report.json"),
+        trim_collateral.i("bagl-complete.json"),
+    )
+    graph.connect_by_name(full_chip_drc, trim_collateral)
+    graph.connect_by_name(full_chip_lvs, trim_collateral)
+    graph.connect_by_name(macro_activity, trim_collateral)
+    graph.connect_by_name(macro_power, trim_collateral)
+
     # Terminal summary waits for both macro and full-chip results.
     graph.connect_by_name(macro_publish, flow_summary)
     for node in [
@@ -204,11 +221,15 @@ def construct():
     )
     graph.connect_by_name(macro_activity, flow_summary)
     graph.connect_by_name(macro_power, flow_summary)
+    graph.connect_by_name(trim_collateral, flow_summary)
 
     graph.update_params(
         {
             "construct_path": __file__,
-            "allo_design_file": os.path.join(this_dir, "eva_elastic.py.py"),
+            "allo_design_file": os.path.join(
+                this_dir,
+                "eva_sb_syscredit_rtprime_skid_leanalu_lane_distributed.py",
+            ),
             "allo_entrypoint": "build",
             "backend": "vitis",
             "build_mode": "csyn",
@@ -219,15 +240,18 @@ def construct():
             "allo_setup_script": "/work/shared/common/allo/setup-llvm-main.sh",
             "top_module": "top",
             "design_name": "top",
-            "report_design_name": "allo-eva-elastic_2x2_fp16_FIFO8",
+            "report_design_name": "allo-eva-blocking-lane-distributed_2x2_fp16_FIFO8",
             "adk": "freepdk-45nm",
             "adk_view": "view-standard",
             "min_macro_reuse": 2,
             "harden_repeated_hls_submodules": False,
-            "bypass_macro_generation": False,
+            "bypass_macro_generation": False,            #### !
             "fold_fifos_into_macro": True,
             "enable_kernel_rotation": True,
-            "interleave_macros": False,
+            "interleave_macros": True,
+            "enable_macro_channel_soft_blockages": True,
+            "macro_channel_soft_blockage_fraction": 0.3,
+            "peripheral_placement_sides": "all",
             "enable_gui": False,
             "nthreads": 4,
             "local_cpus": 4,
@@ -236,18 +260,28 @@ def construct():
             "drc_check_policy": "report",
             "macro_hold_target_slack": 0.050,
             "macro_setup_target_slack": 0.050,
-            "hold_target_slack": 0.150,
-            "hold_optimization_target_slack": 0.200,
+            "hold_target_slack": 0.020,
+            "hold_optimization_target_slack": 0.080,
             "stop_after_step": "none",
             "core_density_target": 0.70,
+            "macro_core_density_target": 0.70,
+            "use_separate_macro_density_target": False,
             "highest_macro_routing_layer": 5,
             "drc_nthreads": 4,
             "lvs_nthreads": 4,
             "flatten_effort": 1,
-            "macro_separation_x": 30.0,
-            "macro_separation_y": 30.0,
-            "kernel_separation_x": 30.0,
-            "kernel_separation_y": 30.0,
+            "macro_separation_x": 10.0,
+            "macro_separation_y": 10.0,
+            "macro_halo": 0.5,
+            "useful_skew": False,
+            "ccopt_target_max_transition": 0.120,
+            "clock_pin_depth_width_multiplier": 5.0,
+            "macro_clock_root_buffer_cell": "CLKBUF_X1",
+            "macro_clock_root_buffer_input_pin": "A",
+            "macro_clock_root_buffer_output_pin": "Z",
+            "kernel_separation_x": 10.0,
+            "kernel_separation_y": 10.0,
+            "macro_edge_keepout": 10.0,
             "sram_separation": 20.0,
             "google_sheets_enabled": True,
             "google_sheets_required": True,
@@ -261,6 +295,7 @@ def construct():
             "testbench_name": "allo_generated_testbench",
             "dut_name": "dut",
             "sdf_corner": "typ",
+            "bagl_failure_policy": "report",
             "sdf_warning_policy": "report",
             "sdf_unmatched_timingcheck_policy": "report",
             "sdf_unmatched_iopath_policy": "report",
@@ -274,6 +309,7 @@ def construct():
             "zero_delay_simulation": False,
             "lib_op_condition": "undefined",
             "macro_power_max_workers": 4,
+            "trim_collateral": True,
         }
     )
     return graph

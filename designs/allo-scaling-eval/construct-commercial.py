@@ -72,6 +72,7 @@ def construct():
     )
     full_chip_drc = Node(os.path.join(stage2_dir, "commercial-full-chip-drc"))
     full_chip_lvs = Node(os.path.join(stage2_dir, "commercial-full-chip-lvs"))
+    trim_collateral = Node(os.path.join(nodes_dir, "allo-trim-collateral"))
     flow_summary = Node(os.path.join(nodes_dir, "allo-asic-flow-summary"))
 
     for node in [
@@ -98,6 +99,7 @@ def construct():
         full_chip_gdsmerge,
         full_chip_drc,
         full_chip_lvs,
+        trim_collateral,
         flow_summary,
     ]:
         graph.add_node(node)
@@ -190,6 +192,21 @@ def construct():
     graph.connect(power_analysis.o("power.rpt"), macro_power.i("power.rpt"))
     graph.connect_by_name(adk, macro_power)
 
+    # Trim only after every consumer of simulation, verification, activity,
+    # and power collateral has completed.
+    graph.connect(
+        ffgl_sim.o("simulation-report.json"),
+        trim_collateral.i("ffgl-complete.json"),
+    )
+    graph.connect(
+        bagl_sim.o("simulation-report.json"),
+        trim_collateral.i("bagl-complete.json"),
+    )
+    graph.connect_by_name(full_chip_drc, trim_collateral)
+    graph.connect_by_name(full_chip_lvs, trim_collateral)
+    graph.connect_by_name(macro_activity, trim_collateral)
+    graph.connect_by_name(macro_power, trim_collateral)
+
     # Terminal summary waits for both macro and full-chip results.
     graph.connect_by_name(macro_publish, flow_summary)
     for node in [
@@ -216,13 +233,14 @@ def construct():
     )
     graph.connect_by_name(macro_activity, flow_summary)
     graph.connect_by_name(macro_power, flow_summary)
+    graph.connect_by_name(trim_collateral, flow_summary)
 
     graph.update_params(
         {
             "construct_path": __file__,
             "allo_design_file": os.path.join(this_dir, "allo_design.py"),
             "allo_entrypoint": "build",
-            "allo_array_size": 8,
+            "allo_array_size": 4,
             "allo_reduction_size": 8,
             "allo_dtype_bits": 32,
             "allo_fifo_depth": 8,
@@ -235,7 +253,7 @@ def construct():
             "allo_setup_script": "/work/shared/common/allo/setup-llvm-main.sh",
             "top_module": "top",
             "design_name": "top",
-            "report_design_name": "allo-scaling-eval_N8_K8_int32_FIF8",
+            "report_design_name": "allo-scaling-eval_N4_K8_int32_FIF8",
             "adk": "freepdk-45nm",
             "adk_view": "view-standard",
             "min_macro_reuse": 2,
@@ -244,6 +262,9 @@ def construct():
             "fold_fifos_into_macro": True,
             "enable_kernel_rotation": True,
             "interleave_macros": False,
+            "enable_macro_channel_soft_blockages": True,
+            "macro_channel_soft_blockage_fraction": 0.3,
+            "peripheral_placement_sides": "all",
             "enable_gui": False,
             "nthreads": 4,
             "local_cpus": 4,
@@ -252,16 +273,27 @@ def construct():
             "drc_check_policy": "report",
             "macro_hold_target_slack": 0.050,
             "macro_setup_target_slack": 0.050,
-            "hold_target_slack": 0.150,
-            "hold_optimization_target_slack": 0.050,
+            "hold_target_slack": 0.020,
+            "hold_optimization_target_slack": 0.040,
             "stop_after_step": "none",
-            "core_density_target": 0.70,
+            "core_density_target": 0.50,
+            "macro_core_density_target": 0.70,
+            "use_separate_macro_density_target": False,
             "highest_macro_routing_layer": 5,
             "drc_nthreads": 4,
             "lvs_nthreads": 4,
             "flatten_effort": 1,
-            "macro_separation_x": 30.0,
-            "macro_separation_y": 30.0,
+            "macro_separation_x": 5.0,
+            "macro_separation_y": 5.0,
+            "macro_halo": 0.5,
+            "useful_skew": False,
+            # Relax the auto-computed ~0.038 ns CCOpt slew objective to a
+            # realistic value for the hardened macro clock interfaces.
+            "ccopt_target_max_transition": 0.120,
+            "clock_pin_depth_width_multiplier": 5.0,
+            "macro_clock_root_buffer_cell": "CLKBUF_X1",
+            "macro_clock_root_buffer_input_pin": "A",
+            "macro_clock_root_buffer_output_pin": "Z",
             "kernel_separation_x": 30.0,
             "kernel_separation_y": 30.0,
             "sram_separation": 20.0,
@@ -278,6 +310,7 @@ def construct():
             "testbench_name": "allo_generated_testbench",
             "dut_name": "dut",
             "sdf_corner": "typ",
+            "bagl_failure_policy": "report",
             "sdf_warning_policy": "report",
             "sdf_unmatched_timingcheck_policy": "report",
             "sdf_unmatched_iopath_policy": "report",
@@ -291,6 +324,7 @@ def construct():
             "zero_delay_simulation": False,
             "lib_op_condition": "undefined",
             "macro_power_max_workers": 4,
+            "trim_collateral": True,
         }
     )
     return graph
