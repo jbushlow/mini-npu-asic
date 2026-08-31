@@ -34,7 +34,7 @@ def construct():
     'saif_instance'       : 'CoreTb/core_inst',
     # Synthesis
     # Flatten effort 0 is strict hierarchy, 3 is full flattening
-    'flatten_effort'      : 0,
+    'flatten_effort'      : 3,
     'topographical'       : False,
     # Postroute timing target slack
     'setup_target_slack'  : 0.050,
@@ -66,8 +66,8 @@ def construct():
     'well_tap_interval'   : 120,
     'primary_power_net'   : 'VDD',
     'primary_ground_net'  : 'VSS',
-    'power_pin_names'     : 'VDD,vdd',
-    'ground_pin_names'    : 'VSS,gnd',
+    'power_pin_names'     : 'VDD',
+    'ground_pin_names'    : 'VSS',
     # SV2V params
     'top_module'          : 'core',
     'design_path'         : '~/mininpu/hardware/rtl',
@@ -76,6 +76,11 @@ def construct():
     'sram_manifest'       : 'rtl/sram_manifest.yml',
     'use_sram_cache'      : True,
     'sram_cache_path'     : '../../srams',
+    'consume_upstream_testbench' : True,
+    'testbench_top'       : 'CoreTb',
+    'dut_instance'        : 'core_inst',
+    'activity_source'     : 'bagl_vcd',
+    'pass_marker'         : 'PASS',
   }
 
   #-----------------------------------------------------------------------
@@ -93,9 +98,9 @@ def construct():
   adk = g.get_adk_node()
 
   testbench      = Node( this_dir + '/testbench'   )
+  testbench_collect = Node( os.path.join(nodes_dir, 'testbench-collector')        )
   constraints    = Node( this_dir + '/constraints' )
 
-  info           = Node( 'info',                            default=True          )
   openram        = Node( os.path.join(nodes_dir, 'openram-sram-generation')       )
   sv2v           = Node( os.path.join(nodes_dir, 'sv2v-design-collector')         )
   synth          = Node( os.path.join(nodes_dir, 'synopsys-dc-synthesis')         )
@@ -105,23 +110,27 @@ def construct():
   gdsmerge       = Node( os.path.join(nodes_dir, 'mentor-calibre-gdsmerge')       )
   drc            = Node( os.path.join(nodes_dir, 'mentor-calibre-drc')            )
   lvs            = Node( os.path.join(nodes_dir, 'mentor-calibre-lvs')            )
-  vcs_sim        = Node( os.path.join(nodes_dir, 'synopsys-vcs-sim-old')          )
+  utilities      = Node( os.path.join(nodes_dir, 'asic-flow-utilities')            )
+  rtl_sim        = Node( os.path.join(nodes_dir, 'commercial-rtl-sim')             )
+  ffgl_sim       = Node( os.path.join(nodes_dir, 'commercial-ffgl-sim')            )
+  bagl_sim       = Node( os.path.join(nodes_dir, 'commercial-bagl-sim')            )
   power_est      = Node( os.path.join(nodes_dir, 'synopsys-pt-power')             )
+  summary        = Node( os.path.join(nodes_dir, 'asic-flow-summary')              )
+  finalize       = Node( os.path.join(nodes_dir, 'asic-flow-finalize')             )
 
   #-----------------------------------------------------------------------
   # Modify Nodes
   #-----------------------------------------------------------------------
 
-  vcs_sim.extend_inputs( ['test_vectors.txt'] )
-  vcs_sim.update_params( testbench.params() )
-
   #-----------------------------------------------------------------------
   # Graph -- Add nodes
   #-----------------------------------------------------------------------
 
-  g.add_node( info              )
   g.add_node( sv2v              )
   g.add_node( testbench         )
+  g.add_node( testbench_collect )
+  g.add_node( utilities         )
+  g.add_node( rtl_sim           )
   g.add_node( openram           )
   g.add_node( constraints       )
   g.add_node( synth             )
@@ -129,10 +138,13 @@ def construct():
   g.add_node( gdsmerge          )
   g.add_node( drc               )
   g.add_node( lvs               )
-  g.add_node( vcs_sim           )
+  g.add_node( ffgl_sim          )
+  g.add_node( bagl_sim          )
   g.add_node( pt_signoff        )
   g.add_node( power_est         )
   g.add_node( genlibdb          )
+  g.add_node( summary           )
+  g.add_node( finalize          )
 
   #-----------------------------------------------------------------------
   # Graph -- Add edges
@@ -147,6 +159,8 @@ def construct():
   g.connect_by_name( adk,            drc            )
   g.connect_by_name( adk,            lvs            )
   g.connect_by_name( adk,            genlibdb       )
+  g.connect_by_name( adk,            ffgl_sim       )
+  g.connect_by_name( adk,            bagl_sim       )
 
   g.connect_by_name( openram,        synth          )
   g.connect_by_name( openram,        pnr            )
@@ -154,13 +168,22 @@ def construct():
   g.connect_by_name( openram,        genlibdb       )
   g.connect_by_name( openram,        gdsmerge       )
   g.connect_by_name( openram,        lvs            )
-  g.connect_by_name( openram,        vcs_sim        )
+  g.connect_by_name( openram,        rtl_sim        )
+  g.connect_by_name( openram,        ffgl_sim       )
+  g.connect_by_name( openram,        bagl_sim       )
   g.connect_by_name( openram,        power_est      )
 
   g.connect_by_name( sv2v,           synth          )
+  g.connect_by_name( sv2v,           rtl_sim        )
+  g.connect_by_name( testbench,      testbench_collect )
+  for node in [rtl_sim, ffgl_sim, bagl_sim, power_est]:
+    g.connect_by_name( testbench_collect, node )
+  for node in [rtl_sim, ffgl_sim, bagl_sim, lvs]:
+    g.connect_by_name( utilities, node )
   g.connect_by_name( constraints,    synth          )
 
   g.connect_by_name( synth,          pnr            )
+  g.connect_by_name( synth,          ffgl_sim       )
   g.connect_by_name( constraints,    pnr            )
 
   g.connect_by_name( pnr,            pt_signoff     )
@@ -172,13 +195,24 @@ def construct():
   g.connect_by_name( gdsmerge,       drc            )
   g.connect_by_name( gdsmerge,       lvs            )
 
-  g.connect_by_name( adk,            vcs_sim        )
-  g.connect_by_name( pnr,            vcs_sim        )
-  g.connect_by_name( testbench,      vcs_sim        )
+  g.connect_by_name( pnr,            bagl_sim       )
 
   g.connect_by_name( adk,            power_est      )
   g.connect_by_name( pnr,            power_est      )
-  g.connect_by_name( vcs_sim,        power_est      )
+  g.connect_by_name( bagl_sim,       power_est      )
+  g.connect(synth.o('synthesis-metrics.json'), summary.i('synthesis-metrics.json'))
+  g.connect(pnr.o('pnr-metrics.json'), summary.i('pnr-metrics.json'))
+  g.connect(pt_signoff.o('timing-metrics.json'), summary.i('timing-metrics.json'))
+  g.connect(gdsmerge.o('gdsmerge-metrics.json'), summary.i('gdsmerge-metrics.json'))
+  g.connect(drc.o('drc-metrics.json'), summary.i('drc-metrics.json'))
+  g.connect(drc.o('drc-policy.json'), summary.i('drc-policy.json'))
+  g.connect(lvs.o('lvs-metrics.json'), summary.i('lvs-metrics.json'))
+  g.connect(power_est.o('power.rpt'), summary.i('power.rpt'))
+  g.connect(power_est.o('activity-source.json'), summary.i('activity-source.json'))
+  g.connect(rtl_sim.o('simulation-report.json'), summary.i('rtl-simulation-report.json'))
+  g.connect(ffgl_sim.o('simulation-report.json'), summary.i('ffgl-simulation-report.json'))
+  g.connect(bagl_sim.o('simulation-report.json'), summary.i('bagl-simulation-report.json'))
+  g.connect_by_name( summary,         finalize       )
 
   #-----------------------------------------------------------------------
   # Parameterize

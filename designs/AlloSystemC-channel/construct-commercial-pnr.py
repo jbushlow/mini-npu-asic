@@ -17,7 +17,7 @@ def construct():
     'adk_view': 'view-standard',
     'enable_gui': True,
     'saif_instance': 'HelloChannelTb/dut',
-    'flatten_effort': 0,
+    'flatten_effort': 3,
     'topographical': False,
     'setup_target_slack': 0.050,
     'hold_target_slack': 0.050,
@@ -41,6 +41,11 @@ def construct():
     'primary_ground_net': 'VSS',
     'power_pin_names': 'VDD',
     'ground_pin_names': 'VSS',
+    'consume_upstream_testbench': True,
+    'testbench_top': 'HelloChannelTb',
+    'dut_instance': 'dut',
+    'activity_source': 'bagl_vcd',
+    'pass_marker': 'PASS',
   }
 
   this_dir = os.path.dirname(os.path.abspath(__file__))
@@ -53,8 +58,8 @@ def construct():
 
   rtl = Node(os.path.join(this_dir, 'rtl'))
   testbench = Node(os.path.join(this_dir, 'testbench'))
+  testbench_collect = Node(os.path.join(nodes_dir, 'testbench-collector'))
   constraints = Node(os.path.join(this_dir, 'constraints'))
-  info = Node('info', default=True)
   synth = Node(os.path.join(nodes_dir, 'synopsys-dc-synthesis'))
   pnr = Node(os.path.join(nodes_dir, 'cadence-innovus-pnr'))
   pt_signoff = Node(os.path.join(nodes_dir, 'synopsys-pt-timing-signoff'))
@@ -62,32 +67,54 @@ def construct():
   gdsmerge = Node(os.path.join(nodes_dir, 'mentor-calibre-gdsmerge'))
   drc = Node(os.path.join(nodes_dir, 'mentor-calibre-drc'))
   lvs = Node(os.path.join(nodes_dir, 'mentor-calibre-lvs'))
-  vcs_sim = Node(os.path.join(nodes_dir, 'synopsys-vcs-sim-old'))
+  utilities = Node(os.path.join(nodes_dir, 'asic-flow-utilities'))
+  rtl_sim = Node(os.path.join(nodes_dir, 'commercial-rtl-sim'))
+  ffgl_sim = Node(os.path.join(nodes_dir, 'commercial-ffgl-sim'))
+  bagl_sim = Node(os.path.join(nodes_dir, 'commercial-bagl-sim'))
   power_est = Node(os.path.join(nodes_dir, 'synopsys-pt-power'))
+  summary = Node(os.path.join(nodes_dir, 'asic-flow-summary'))
+  finalize = Node(os.path.join(nodes_dir, 'asic-flow-finalize'))
 
-  vcs_sim.extend_inputs(['test_vectors.txt'])
-  vcs_sim.update_params(testbench.params())
-
-  for node in [info, rtl, testbench, constraints, synth, pnr, pt_signoff,
-               genlibdb, gdsmerge, drc, lvs, vcs_sim, power_est]:
+  for node in [rtl, testbench, testbench_collect, constraints, utilities,
+               rtl_sim, synth, ffgl_sim, pnr, pt_signoff, genlibdb, gdsmerge,
+               drc, lvs, bagl_sim, power_est, summary, finalize]:
     g.add_node(node)
 
-  for node in [synth, pnr, pt_signoff, genlibdb, gdsmerge, drc, lvs, vcs_sim,
-               power_est]:
+  for node in [synth, pnr, pt_signoff, genlibdb, gdsmerge, drc, lvs, ffgl_sim,
+               bagl_sim, power_est]:
     g.connect_by_name(adk, node)
 
   g.connect_by_name(rtl, synth)
+  g.connect_by_name(rtl, rtl_sim)
+  g.connect_by_name(testbench, testbench_collect)
+  for node in [rtl_sim, ffgl_sim, bagl_sim, power_est]:
+    g.connect_by_name(testbench_collect, node)
+  for node in [rtl_sim, ffgl_sim, bagl_sim, lvs]:
+    g.connect_by_name(utilities, node)
   g.connect_by_name(constraints, synth)
   g.connect_by_name(synth, pnr)
   g.connect_by_name(synth, power_est)
 
-  for node in [pt_signoff, genlibdb, gdsmerge, drc, lvs, vcs_sim, power_est]:
+  for node in [pt_signoff, genlibdb, gdsmerge, drc, lvs, bagl_sim, power_est]:
     g.connect_by_name(pnr, node)
+  g.connect_by_name(synth, ffgl_sim)
 
   g.connect_by_name(gdsmerge, drc)
   g.connect_by_name(gdsmerge, lvs)
-  g.connect_by_name(testbench, vcs_sim)
-  g.connect_by_name(vcs_sim, power_est)
+  g.connect_by_name(bagl_sim, power_est)
+  g.connect(synth.o('synthesis-metrics.json'), summary.i('synthesis-metrics.json'))
+  g.connect(pnr.o('pnr-metrics.json'), summary.i('pnr-metrics.json'))
+  g.connect(pt_signoff.o('timing-metrics.json'), summary.i('timing-metrics.json'))
+  g.connect(gdsmerge.o('gdsmerge-metrics.json'), summary.i('gdsmerge-metrics.json'))
+  g.connect(drc.o('drc-metrics.json'), summary.i('drc-metrics.json'))
+  g.connect(drc.o('drc-policy.json'), summary.i('drc-policy.json'))
+  g.connect(lvs.o('lvs-metrics.json'), summary.i('lvs-metrics.json'))
+  g.connect(power_est.o('power.rpt'), summary.i('power.rpt'))
+  g.connect(power_est.o('activity-source.json'), summary.i('activity-source.json'))
+  g.connect(rtl_sim.o('simulation-report.json'), summary.i('rtl-simulation-report.json'))
+  g.connect(ffgl_sim.o('simulation-report.json'), summary.i('ffgl-simulation-report.json'))
+  g.connect(bagl_sim.o('simulation-report.json'), summary.i('bagl-simulation-report.json'))
+  g.connect_by_name(summary, finalize)
 
   g.update_params(parameters)
   return g

@@ -14,6 +14,7 @@ def construct():
     graph.sys_path.append(os.path.join(asic_dir, "adks"))
     graph.set_adk("freepdk-45nm")
     adk = graph.get_adk_node()
+    flow_utilities = Node(os.path.join(nodes_dir, "asic-flow-utilities"))
 
     allo_build = Node(os.path.join(nodes_dir, "allo-asic-compilation"))
     testbench_generation = Node(
@@ -60,10 +61,11 @@ def construct():
     )
     full_chip_drc = Node(os.path.join(stage2_dir, "commercial-full-chip-drc"))
     full_chip_lvs = Node(os.path.join(stage2_dir, "commercial-full-chip-lvs"))
-    trim_collateral = Node(os.path.join(nodes_dir, "allo-trim-collateral"))
     flow_summary = Node(os.path.join(nodes_dir, "allo-asic-flow-summary"))
+    flow_finalize = Node(os.path.join(nodes_dir, "asic-flow-finalize"))
 
     for node in [
+        flow_utilities,
         allo_build,
         testbench_generation,
         rtl_sim,
@@ -87,10 +89,24 @@ def construct():
         full_chip_gdsmerge,
         full_chip_drc,
         full_chip_lvs,
-        trim_collateral,
         flow_summary,
+        flow_finalize,
     ]:
         graph.add_node(node)
+
+    for node in [
+        allo_build,
+        rtl_sim,
+        ffgl_sim,
+        bagl_sim,
+        macro_synthesis,
+        macro_pnr,
+        macro_physical_verify,
+        macro_signoff,
+        macro_power,
+        full_chip_lvs,
+    ]:
+        graph.connect_by_name(flow_utilities, node)
 
     # Allo/Vitis compilation and normalized RTL production.
     graph.connect_by_name(allo_build, testbench_generation)
@@ -182,19 +198,6 @@ def construct():
 
     # Trim large simulation and verification intermediates only after every
     # activity, power, DRC, and LVS consumer has completed.
-    graph.connect(
-        ffgl_sim.o("simulation-report.json"),
-        trim_collateral.i("ffgl-complete.json"),
-    )
-    graph.connect(
-        bagl_sim.o("simulation-report.json"),
-        trim_collateral.i("bagl-complete.json"),
-    )
-    graph.connect_by_name(full_chip_drc, trim_collateral)
-    graph.connect_by_name(full_chip_lvs, trim_collateral)
-    graph.connect_by_name(macro_activity, trim_collateral)
-    graph.connect_by_name(macro_power, trim_collateral)
-
     # Terminal summary waits for both macro and full-chip results.
     graph.connect_by_name(macro_publish, flow_summary)
     for node in [
@@ -221,7 +224,7 @@ def construct():
     )
     graph.connect_by_name(macro_activity, flow_summary)
     graph.connect_by_name(macro_power, flow_summary)
-    graph.connect_by_name(trim_collateral, flow_summary)
+    graph.connect_by_name(flow_summary, flow_finalize)
 
     graph.update_params(
         {
@@ -306,10 +309,10 @@ def construct():
             "waveform": True,
             "saif_instance": "allo_generated_testbench/dut",
             "analysis_mode": "averaged",
-            "zero_delay_simulation": False,
+            "activity_source": "bagl_vcd",
             "lib_op_condition": "undefined",
             "macro_power_max_workers": 4,
-            "trim_collateral": True,
+            "cleanup_enabled": True,
         }
     )
     return graph

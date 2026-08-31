@@ -14,6 +14,7 @@ def construct():
     graph.sys_path.append(os.path.join(asic_dir, "adks"))
     graph.set_adk("freepdk-45nm")
     adk = graph.get_adk_node()
+    flow_utilities = Node(os.path.join(nodes_dir, "asic-flow-utilities"))
 
     allo_build = Node(os.path.join(nodes_dir, "allo-asic-compilation"))
     rtl_normalize = Node(os.path.join(nodes_dir, "sv2v-rtl-allo"))
@@ -33,6 +34,7 @@ def construct():
         os.path.join(stage1_dir, "commercial-macro-publish")
     )
     flow_summary = Node(os.path.join(nodes_dir, "allo-asic-flow-summary"))
+    flow_finalize = Node(os.path.join(nodes_dir, "asic-flow-finalize"))
     stage2_dir = os.path.join(nodes_dir, "allo-full-chip")
     assembly_plan = Node(os.path.join(stage2_dir, "allo-asic-assembly-plan"))
     rtl_assembly = Node(os.path.join(stage2_dir, "allo-asic-rtl-assembly"))
@@ -47,6 +49,7 @@ def construct():
     full_chip_drc = Node(os.path.join(stage2_dir, "commercial-full-chip-drc"))
     full_chip_lvs = Node(os.path.join(stage2_dir, "commercial-full-chip-lvs"))
     for node in [
+        flow_utilities,
         allo_build,
         rtl_normalize,
         macro_plan,
@@ -56,6 +59,7 @@ def construct():
         macro_signoff,
         macro_publish,
         flow_summary,
+        flow_finalize,
         assembly_plan,
         rtl_assembly,
         full_chip_synthesis,
@@ -66,6 +70,16 @@ def construct():
         full_chip_lvs,
     ]:
         graph.add_node(node)
+
+    for node in [
+        allo_build,
+        macro_synthesis,
+        macro_pnr,
+        macro_physical_verify,
+        macro_signoff,
+        full_chip_lvs,
+    ]:
+        graph.connect_by_name(flow_utilities, node)
 
     graph.connect_by_name(allo_build, rtl_normalize)
     graph.connect_by_name(rtl_normalize, macro_plan)
@@ -118,6 +132,7 @@ def construct():
     graph.connect_by_name(full_chip_gdsmerge, flow_summary)
     graph.connect_by_name(full_chip_drc, flow_summary)
     graph.connect_by_name(full_chip_lvs, flow_summary)
+    graph.connect_by_name(flow_summary, flow_finalize)
     for node in [
         macro_synthesis,
         macro_pnr,

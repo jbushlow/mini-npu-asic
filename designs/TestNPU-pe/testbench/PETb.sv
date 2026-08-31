@@ -71,19 +71,19 @@ module PETb;
     input integer idx;
     reg [31:0] expected_fp32;
     reg [31:0] psum_in_fp32;
-    reg [15:0] activation_fp16;
-    reg [15:0] weight_fp16;
+    reg [15:0] activation_bf16;
+    reg [15:0] weight_bf16;
     begin
       expected_fp32  = test_vectors[idx][95:64];
       psum_in_fp32   = test_vectors[idx][63:32];
-      activation_fp16 = test_vectors[idx][31:16];
-      weight_fp16    = test_vectors[idx][15:0];
+      activation_bf16 = test_vectors[idx][31:16];
+      weight_bf16    = test_vectors[idx][15:0];
 
       // Load the PE foreground weight. Holding accept and switch together
       // matches the direct-load path in pe.sv.
       pe_accept_w_in <= #`ASSIGNMENT_DELAY 1'b1;
       pe_switch_in   <= #`ASSIGNMENT_DELAY 1'b1;
-      pe_weight_in   <= #`ASSIGNMENT_DELAY weight_fp16;
+      pe_weight_in   <= #`ASSIGNMENT_DELAY weight_bf16;
       pe_valid_in    <= #`ASSIGNMENT_DELAY 1'b0;
       @(posedge clk);
 
@@ -93,7 +93,7 @@ module PETb;
 
       // Apply one MAC transaction. pe_psum_out updates two cycles after
       // pe_valid_in for LATENCY=0: one explicit mult register, then add/write.
-      pe_input_in <= #`ASSIGNMENT_DELAY activation_fp16;
+      pe_input_in <= #`ASSIGNMENT_DELAY activation_bf16;
       pe_psum_in  <= #`ASSIGNMENT_DELAY psum_in_fp32;
       pe_valid_in <= #`ASSIGNMENT_DELAY 1'b1;
       @(posedge clk);
@@ -103,7 +103,7 @@ module PETb;
 
       $display(
           "vector %0d: weight=%h activation=%h psum_in=%h got=%h expected=%h",
-          idx, weight_fp16, activation_fp16, psum_in_fp32, pe_psum_out, expected_fp32
+          idx, weight_bf16, activation_bf16, psum_in_fp32, pe_psum_out, expected_fp32
       );
       assert (pe_psum_out === expected_fp32)
         else begin
@@ -135,9 +135,10 @@ module PETb;
   end
 
   initial begin
-    $vcdplusfile("dump.vcd");
-    $vcdplusmemon();
-    $vcdpluson(0, PETb);
+    if ($test$plusargs("ASIC_DUMP_VCD")) begin
+      $dumpfile("outputs/run.vcd");
+      $dumpvars(0, PETb);
+    end
     #(`FINISH_TIME);
     $error("PETb timed out");
     $finish(2);

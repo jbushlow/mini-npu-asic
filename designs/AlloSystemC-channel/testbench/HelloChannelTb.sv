@@ -114,9 +114,10 @@ module HelloChannelTb;
   end
 
   initial begin
-    $vcdplusfile("dump.vcd");
-    $vcdplusmemon();
-    $vcdpluson(0, HelloChannelTb);
+    if ($test$plusargs("ASIC_DUMP_VCD")) begin
+      $dumpfile("outputs/run.vcd");
+      $dumpvars(0, HelloChannelTb);
+    end
     #(`FINISH_TIME);
     $error("HelloChannelTb timed out (sent=%0d received=%0d done=%b)",
            sent, received, done);

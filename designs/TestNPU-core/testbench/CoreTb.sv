@@ -155,9 +155,10 @@ module CoreTb;
   end
 
   initial begin
-    $vcdplusfile("dump.vcd");
-    $vcdplusmemon();
-    $vcdpluson(0, CoreTb);
+    if ($test$plusargs("ASIC_DUMP_VCD")) begin
+      $dumpfile("outputs/run.vcd");
+      $dumpvars(0, CoreTb);
+    end
     #(`FINISH_TIME);
     $error("CoreTb timed out");
     $finish(2);
